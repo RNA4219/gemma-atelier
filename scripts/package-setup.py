@@ -53,9 +53,9 @@ def main():
             entry = tarfile.TarInfo(name); entry.size = len(data); entry.mode = 0o600
             tar.addfile(entry, io.BytesIO(data))
     sha = hashlib.sha256(output.read_bytes()).hexdigest()
-    (assets / 'runtime.sha256').write_text(sha + '\n', encoding='ascii')
+    (assets / 'runtime.sha256').write_text(sha + '\n', encoding='ascii', newline='\n')
     (assets / 'bootstrap.sh').write_bytes((ROOT / 'setup/bootstrap.sh').read_bytes().replace(b'\r\n', b'\n'))
-    (assets / 'runtime-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
+    (assets / 'runtime-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n', encoding='utf-8', newline='\n')
     print(json.dumps({'runtime_bytes': output.stat().st_size, 'sha256': sha}))
 
 
