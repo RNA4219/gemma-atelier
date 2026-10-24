@@ -1,12 +1,12 @@
-# Gemma Atelier
+# LLM Atelier
 
-nubia上でBoltとの会話と画像生成を使うためのアプリです。ホーム画面の緑の稲妻の「Gemma」から起動します。会話モデルはNemotron 3.5 Bolt E4B、会話本体はHexagon NPU、画像生成はNightmareのQNN DSPを使います。
+LLM Atelierは、nubia上でLLMとの会話と画像生成を使うためのアプリです。現在の会話モデルはNemotron 3.5 Bolt E4B。会話本体はHexagon NPU、画像生成はNightmareのQNN DSPを使います。v1.2.0の端末表示名は「Gemma」で、ホーム画面の緑の稲妻から起動します。
 
 ## APKを入れる
 
 **v1.2.0は導入ガイド・ダウンロード管理付きです。対象はSnapdragon 8 Gen 3（SM8650）・RAM16GB・Android12以上。NPUで起動できない端末では停止し、CPU推論へ切り替えません。**
 
-1. AndroidのChromeで[最新Release](https://github.com/RNA4219/gemma-atelier/releases/latest)を開きます。公開リポジトリのため、ダウンロードにGitHubへのログインは不要です。
+1. AndroidのChromeで[最新Release](https://github.com/RNA4219/llm-atelier/releases/latest)を開きます。公開リポジトリのため、ダウンロードにGitHubへのログインは不要です。
 2. `Gemma-Atelier-v1.2.0.apk`をダウンロードして開き、インストールまたは更新を選びます。
 3. 「はじめる」の案内に沿ってTermuxを導入し、一度開きます。Androidのインストール確認・権限要求を許可してください。
 4. 「モデルの準備をはじめる」から、初回だけTermuxで長押し→貼り付け→Enter。以後、モデル取得・PLE分離・NPU確認を自動で行います。
