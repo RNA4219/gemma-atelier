@@ -5,6 +5,8 @@ import threading
 import unittest
 from pathlib import Path
 from install import fetch, check_device, verify_npu, installed_model
+from download import Paused, Job, source_url
+import json
 
 DATA = b'bolt download fixture' * 100
 
@@ -55,6 +57,26 @@ class InstallTests(unittest.TestCase):
     def test_missing_ple_cannot_be_reused(self):
         with tempfile.TemporaryDirectory() as folder:
             self.assertFalse(installed_model(Path(folder)))
+    def test_pause_preserves_partial_and_resume_reports_verification(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'model.gguf'; part=path.with_suffix('.gguf.part'); part.write_bytes(DATA[:37])
+            args=(f'http://127.0.0.1:{self.server.server_port}/range',path,len(DATA),hashlib.sha256(DATA).hexdigest())
+            with self.assertRaises(Paused): fetch(*args,control=lambda:{'command':'pause'})
+            self.assertEqual(part.read_bytes(),DATA[:37]); self.assertFalse(path.exists())
+            events=[];fetch(*args,event=lambda **kw:events.append(kw))
+            self.assertEqual(path.read_bytes(),DATA);self.assertFalse(part.exists())
+            self.assertIn('download',[e['phase'] for e in events]);self.assertIn('verify',[e['phase'] for e in events])
+    def test_job_survives_callback_reconnection_and_phase_has_no_stale_speed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            first='http://127.0.0.1:1/'+'a'*48;second='http://127.0.0.1:1/'+'b'*48
+            a=Job(folder,first);a.report('取得中',phase='download',bytes=12,total=30,speed=20,eta=1)
+            b=Job(folder,second);self.assertEqual(a.url(),second);self.assertEqual(b.current['bytes'],12)
+            a.report('準備中',phase='split');saved=json.loads((Path(folder)/'.setup-status.json').read_text())
+            self.assertEqual(saved['speed'],0);self.assertEqual(saved['total'],0);self.assertEqual(saved['phase'],'split')
+    def test_source_preserves_model_path_and_rejects_credentials_or_paths(self):
+        self.assertEqual(source_url('https://huggingface.co/a/b/resolve/main/x','https://hf-mirror.com'),'https://hf-mirror.com/a/b/resolve/main/x')
+        for origin in ['http://example.com','https://user:pass@example.com','https://example.com/path','https://example.com?q=1']:
+            with self.assertRaises(ValueError):source_url('https://huggingface.co/model',origin)
 
 
 if __name__ == '__main__': unittest.main()

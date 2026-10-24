@@ -1,6 +1,7 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="local.gemma.launcher" android:versionCode="2" android:versionName="1.1.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="local.gemma.launcher" android:versionCode="3" android:versionName="1.2.0">
     <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -8,7 +9,7 @@
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
     <queries><package android:name="com.termux" /><package android:name="com.android.chrome" /><package android:name="com.abrah.nightmare" /></queries>
     <application android:label="Gemma" android:icon="@drawable/icon" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="true" android:allowBackup="false">
-        <activity android:name=".SetupActivity" android:exported="true" />
+        <activity android:name=".SetupActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="gemma-atelier" android:host="models" /></intent-filter></activity>
         <provider android:name=".InstallFiles" android:authorities="local.gemma.launcher.install" android:exported="false" android:grantUriPermissions="true" />
         <service android:name=".SetupService" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User initiated local NPU model setup and transfer to Termux" /></service>
         <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask">

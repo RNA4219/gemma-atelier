@@ -10,7 +10,8 @@ import subprocess
 import sys
 import time
 import urllib.request
-from urllib.error import HTTPError
+from download import fetch, Job, Paused, IntegrityError, source_url
+import threading
 
 MODEL_URL = ('https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB/resolve/'
              '4008514238a0b4ae17af3988818f75bf084541a5/Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf')
@@ -24,44 +25,6 @@ def digest(path):
     with Path(path).open('rb') as f:
         for b in iter(lambda: f.read(4 << 20), b''): h.update(b)
     return h.hexdigest()
-
-
-def fetch(url, path, expected_size, expected_sha, progress=lambda n: None):
-    """Range再開。応答が200なら先頭から、206は開始位置を照合する。"""
-    path = Path(path)
-    if path.exists():
-        if path.stat().st_size == expected_size and digest(path) == expected_sha: return
-        raise ValueError('保存済みファイルの内容が一致しません: ' + path.name)
-    part = path.with_suffix(path.suffix + '.part')
-    for attempt in range(4):
-        start = part.stat().st_size if part.exists() else 0
-        if start > expected_size: raise ValueError('ダウンロード途中のファイルサイズが不正です')
-        if start == expected_size: break
-        try:
-            req = urllib.request.Request(url, headers={'Range': f'bytes={start}-', 'User-Agent': 'Gemma-Atelier-Setup/1.1'})
-            with urllib.request.urlopen(req, timeout=45) as response:
-                if response.status == 206:
-                    if not response.headers.get('Content-Range', '').startswith(f'bytes {start}-'):
-                        raise ValueError('ダウンロード再開位置が一致しません')
-                    mode = 'ab'
-                elif response.status == 200: start = 0; mode = 'wb'
-                else: raise ValueError('ダウンロード元の応答が不正です')
-                last = 0
-                with part.open(mode) as out:
-                    while True:
-                        block = response.read(1 << 20)
-                        if not block: break
-                        out.write(block); start += len(block)
-                        if start > expected_size: raise ValueError('ダウンロード内容が予定サイズを超えました')
-                        if time.monotonic() - last > 2: progress(start); last = time.monotonic()
-            if start == expected_size: break
-            raise OSError('通信が途中で終了しました')
-        except (OSError, HTTPError):
-            if attempt == 3: raise
-            time.sleep(2 + attempt * 2)
-    if not part.exists() or part.stat().st_size != expected_size or digest(part) != expected_sha:
-        raise ValueError('SHA256またはサイズが一致しません。途中ファイルを確認して再試行してください')
-    os.replace(part, path)
 
 
 def check_device(getprop, ram):
@@ -102,6 +65,7 @@ def installed_model(folder):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--callback', required=True)
+    parser.add_argument('--attach-only', action='store_true')
     args = parser.parse_args()
     if not re.fullmatch(r'http://127\.0\.0\.1:\d+/[0-9a-f]{48}', args.callback):
         raise ValueError('ローカルのセットアップ接続先が不正です')
@@ -109,17 +73,30 @@ def main():
     root = Path.home() / 'gemma-e4b'
     root.mkdir(exist_ok=True)
     import fcntl
-    lock = (root / '.setup.lock').open('w')
-    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    def report(message, state='running'):
-        print(message, flush=True)
-        data = json.dumps({'message': message, 'state': state}, ensure_ascii=False).encode()
-        try: urllib.request.urlopen(urllib.request.Request(args.callback + '/progress', data=data, headers={'Content-Type':'application/json'}), timeout=4).close()
-        except OSError: pass  # Androidが起動画面を止めても、モデルの取得は続けられる。
+    job = Job(root, args.callback)
+    lock = (root / '.setup.lock').open('a')
+    try: fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError: return  # 実行中ジョブが新しいcallbackを使って画面へ再接続する。
+    if args.attach_only: raise SystemExit(2)
+    report = job.report
+    stop = threading.Event()
+    def heartbeat():
+        while not stop.wait(4): job.pulse()
+    threading.Thread(target=heartbeat, daemon=True).start()
     try:
         ram = int(re.search(r'MemTotal:\s+(\d+)', Path('/proc/meminfo').read_text()).group(1)) * 1024
         check_device(lambda k: subprocess.check_output(['/system/bin/getprop', k], text=True), ram)
-        report('対応端末を確認しました。NPUエンジンを準備しています。')
+        settings = Path.home() / '.termux/termux.properties'
+        settings.parent.mkdir(exist_ok=True)
+        previous = settings.read_text() if settings.exists() else ''
+        text = re.sub(r'(?m)^\s*allow-external-apps\s*=.*$', 'allow-external-apps = true', previous)
+        if not re.search(r'(?m)^\s*allow-external-apps\s*=', text): text += '\nallow-external-apps = true\n'
+        if text != previous:
+            backup = root / '.setup-termux-properties.backup'
+            if not backup.exists(): backup.write_text(previous)
+            settings.write_text(text)
+        subprocess.run(['termux-reload-settings'], check=False)
+        report('この端末に合うNPUエンジンを準備しています', phase='runtime', command_ready=True, error_code='', free=shutil.disk_usage(root).free)
         contents = json.loads((bundle / 'manifest.json').read_text())
         bridge_changed = False
         for entry in contents['files']:
@@ -131,57 +108,53 @@ def main():
         if not installed_model(folder):
             if folder.exists() and any(folder.iterdir()):
                 raise ValueError('既存モデルを確認できません。上書きせず停止しました。')
-            if shutil.disk_usage(root).free < 16 * GIB:
-                raise ValueError('Boltの取得・分離には空き容量16GiB以上が必要です')
             downloads = root / '.setup-downloads'; downloads.mkdir(exist_ok=True)
             original = downloads / 'model.gguf'
-            report('Boltを公式配布元から取得します（約6.2GB）。中断しても再開できます。')
-            fetch(MODEL_URL, original, MODEL_BYTES, MODEL_SHA,
-                  lambda n: report(f'Bolt取得中: {n / MODEL_BYTES:.0%} ({n / GIB:.2f} GiB)'))
-            report('取得したモデルを確認しました。PLEを別ファイルに分離しています。')
-            sys.path.insert(0, str(bundle))
-            from split_bolt_ple import split
-            split_folder = downloads / 'split'
-            split_folder.mkdir(exist_ok=True)
-            # このインストーラーが作った途中出力だけを再作成する。
+            part = original.with_suffix('.gguf.part')
+            control = job.control()
+            if control.get('command') == 'reset':
+                part.unlink(missing_ok=True); original.unlink(missing_ok=True)
+                report('途中の取得データを取り直します', phase='download', ack_reset=True)
+            split_folder = downloads / 'split'; split_folder.mkdir(exist_ok=True)
             for name in ['core.gguf','ple.gguf','manifest.json','bolt-template.jinja']:
                 (split_folder / name).unlink(missing_ok=True)
+            have = original.stat().st_size if original.exists() else (part.stat().st_size if part.exists() else 0)
+            required = max(0, MODEL_BYTES-have) + MODEL_BYTES + 2*GIB
+            free = shutil.disk_usage(root).free
+            report('ダウンロードの準備をしています', phase='download', bytes=have, total=MODEL_BYTES, required=required, free=free)
+            if free < required: raise OSError(f'空き容量が不足しています。あと{(required-free)/GIB:.1f} GiB空けて「再開」を押してください。')
+            url = source_url(MODEL_URL, control.get('origin', ''))
+            fetch(url, original, MODEL_BYTES, MODEL_SHA, event=report, control=job.control)
+            report('会話用ファイルを準備しています。品質を変えずにメモリを節約します', phase='split', bytes=0, total=0)
+            sys.path.insert(0, str(bundle))
+            from split_bolt_ple import split
             split(original, split_folder)
             folder.parent.mkdir(parents=True, exist_ok=True)
             if folder.exists(): folder.rmdir()  # 上で空ディレクトリと確認したものだけ。
             os.replace(split_folder, folder)
             original.unlink()  # インストーラー自身が取得した原本。分離と照合の成功後だけ解放。
-        else: report('既存のBolt・PLEを利用します。モデルを再ダウンロードしません。')
-        settings = Path.home() / '.termux/termux.properties'
-        settings.parent.mkdir(exist_ok=True)
-        text = settings.read_text() if settings.exists() else ''
-        before = text
-        if re.search(r'(?m)^\s*allow-external-apps\s*=', text):
-            text = re.sub(r'(?m)^\s*allow-external-apps\s*=.*$', 'allow-external-apps = true', text)
-        else: text += '\nallow-external-apps = true\n'
-        if text != before:
-            backup = root / '.setup-termux-properties.backup'
-            if not backup.exists(): backup.write_text(before)
-            settings.write_text(text)
-        subprocess.run(['termux-reload-settings'], check=False)
+        else: report('導入済みの会話モデルを使います', phase='runtime')
         boot = Path.home() / '.termux/boot'; boot.mkdir(parents=True, exist_ok=True)
         boot_script = boot / '30-gemma-atelier'
         boot_script.write_text('#!/data/data/com.termux/files/usr/bin/sh\nexec sh "$HOME/gemma-e4b/boot-atelier.sh"\n')
         boot_script.chmod(0o700)
         env = root / 'atelier-llm.env'
         if not env.exists(): env.write_text('ATELIER_LLM_PROFILE=bolt\nATELIER_LLM_THINKING=off\nATELIER_LLM_FALLBACK=none\nATELIER_IMAGES_OPTIONAL=1\n')
-        report('BoltをNPUで起動して確認しています。CPUには切り替えません。')
+        report('端末のNPUで会話モデルを起動しています', phase='npu')
         subprocess.run(['sh', str(root / 'start-bolt.sh')], check=True, timeout=240)
         verify_npu((root / 'bolt-server.log').read_text(errors='replace'))
         entrypoint = 'restart-after-setup.sh' if bridge_changed else 'start-atelier.sh'
         subprocess.run(['sh', str(root / entrypoint)], check=True, timeout=90)
         status = json.load(urllib.request.urlopen('http://127.0.0.1:8085/api/status', timeout=8))
         if not status.get('gemma'): raise RuntimeError('会話APIの接続を確認できません')
-        (root / 'setup-complete.json').write_text(json.dumps({'version': '1.1.0', 'npu': 'HTP0-v75', 'model': 'Bolt-E4B', 'images': status.get('images',False)}))
-        report('BoltのNPU準備が完了しました。Gemmaへ戻り「会話を開く」を押してください。', 'complete')
+        (root / 'setup-complete.json').write_text(json.dumps({'version': '1.2.0', 'npu': 'HTP0-v75', 'model': 'Bolt-E4B', 'images': status.get('images',False)}))
+        report('準備できました。さっそく話してみましょう', 'complete', phase='ready', npu=True, images=status.get('images',False), bytes=MODEL_BYTES, total=MODEL_BYTES, free=shutil.disk_usage(root).free)
+    except Paused as error:
+        report(str(error), 'paused', phase='download', speed=0, eta=-1)
     except Exception as error:
-        report('セットアップを停止しました: ' + str(error), 'error')
+        report(str(error), 'error', error_code='integrity' if isinstance(error, IntegrityError) else 'setup', speed=0, eta=-1)
         raise
+    finally: stop.set()
 
 
 if __name__ == '__main__': main()

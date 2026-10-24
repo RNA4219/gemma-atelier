@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "engine_commit": "d454a204ef2b63af357744809c05af897611a72e",
   "soc": "SM8650",
   "hexagon": "v75",
@@ -19,7 +19,7 @@
     {
       "path": "bin/chat-bridge-bolt",
       "bytes": 14119911,
-      "sha256": "f4437c2f94f3f34107b1c73902ed77803f9e1a9e9449d46d9caa26c7aebb573b",
+      "sha256": "2fcd4264a11a4ce763db322548ced041337959207de936e045cf91112daa5ce7",
       "executable": true
     },
     {

@@ -6,102 +6,143 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
-import android.text.InputType;
-import android.widget.*;
+import android.webkit.*;
+import org.json.*;
 import java.io.*;
 import java.net.*;
-import java.security.*;
 import java.util.*;
 import java.util.concurrent.*;
 
+/** 同梱したUIだけに、列挙した導入操作を公開する。 */
 public class SetupActivity extends Activity {
-    private TextView status;
+    private WebView web;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
-    private volatile boolean downloading;
-    private final Runnable refresh=new Runnable(){public void run(){if(isDestroyed())return;if(!downloading)status.setText(SetupService.message);main.postDelayed(this,1000);}};
+    private volatile JSONObject health=new JSONObject();
+    private String pendingPackage="",pendingAction="",pendingToken="";
+    private boolean launching;
+    private final Runnable probe=new Runnable(){public void run(){
+        if(isDestroyed())return;
+        worker.execute(()->{
+            JSONObject next=new JSONObject();
+            try{
+                HttpURLConnection c=(HttpURLConnection)new URL("http://127.0.0.1:8085/api/status").openConnection();c.setConnectTimeout(1000);c.setReadTimeout(1000);
+                try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){
+                    byte[] b=new byte[2048];int n;while((n=in.read(b))>0){if(out.size()>32768)break;out.write(b,0,n);}next=new JSONObject(out.toString("UTF-8"));
+                }finally{c.disconnect();}
+            }catch(Exception ignored){}
+            health=next;
+        });main.postDelayed(this,5000);
+    }};
+    private boolean installed(String p){try{getPackageManager().getPackageInfo(p,0);return true;}catch(PackageManager.NameNotFoundException e){return false;}}
     private boolean supported(){
         ActivityManager.MemoryInfo m=new ActivityManager.MemoryInfo();getSystemService(ActivityManager.class).getMemoryInfo(m);
         return Build.VERSION.SDK_INT>=31&&Build.SOC_MODEL.toUpperCase(Locale.ROOT).startsWith("SM8650")&&m.totalMem>=14L*1024*1024*1024;
     }
-    private boolean installed(String p){try{getPackageManager().getPackageInfo(p,0);return true;}catch(PackageManager.NameNotFoundException e){return false;}}
     private void note(String text){new AlertDialog.Builder(this).setMessage(text).setPositiveButton("OK",null).show();}
-    private void button(LinearLayout parent,String text,Runnable action){Button b=new Button(this);b.setText(text);b.setOnClickListener(v->action.run());parent.addView(b);}
     @Override public void onCreate(Bundle saved){
-        super.onCreate(saved);
-        ScrollView scroll=new ScrollView(this);LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);list.setPadding(32,48,32,48);scroll.addView(list);setContentView(scroll);
-        getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        scroll.setOnApplyWindowInsetsListener((v,insets)->{v.setPadding(0,insets.getSystemWindowInsetTop(),0,insets.getSystemWindowInsetBottom());return insets;});
-        TextView title=new TextView(this);title.setText("Gemma 初回セットアップ");title.setTextSize(26);list.addView(title);
-        TextView device=new TextView(this);device.setText("端末: "+Build.MODEL+" / "+(Build.VERSION.SDK_INT>=31?Build.SOC_MODEL:Build.HARDWARE)+"\n対象: Snapdragon 8 Gen 3・RAM 16GB\nBolt取得は約6.2GB、初回は空き16GiB以上が必要です。Wi-Fiを利用してください。\nモデルの処理は端末のNPUで行います。");list.addView(device);
-        status=new TextView(this);status.setPadding(0,24,0,24);list.addView(status);
-        if(!supported()){status.setText("この端末に対応するNPU版は未提供です。CPUへ切り替えず、ここで停止します。");return;}
-        startForegroundService(new Intent(this,SetupService.class));main.post(refresh);
+        super.onCreate(saved);getWindow().setStatusBarColor(0xfff5f5f1);getWindow().setNavigationBarColor(0xfff5f5f1);
+        getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        android.widget.FrameLayout frame=new android.widget.FrameLayout(this);
+        web=new WebView(this);web.setBackgroundColor(0xfff5f5f1);frame.addView(web,new android.widget.FrameLayout.LayoutParams(-1,-1));setContentView(frame);
+        frame.setOnApplyWindowInsetsListener((v,insets)->{v.setPadding(0,insets.getSystemWindowInsetTop(),0,insets.getSystemWindowInsetBottom());return insets.consumeSystemWindowInsets();});
+        WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);settings.setDomStorageEnabled(false);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        web.setWebViewClient(new WebViewClient(){
+            @Override public void onPageFinished(WebView v,String url){if(getIntent().getData()!=null&&"models".equals(getIntent().getData().getHost()))v.evaluateJavascript("tab('models')",null);}
+            @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return true;}
+            @Override public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest r){
+                if(r.getUrl().toString().matches("file:///android_asset/setup\\.(html|css|js)"))return null;
+                return new WebResourceResponse("text/plain","UTF-8",new ByteArrayInputStream(new byte[0]));
+            }
+        });
+        web.addJavascriptInterface(new Bridge(),"Atelier");web.loadUrl("file:///android_asset/setup.html");
+        if(supported())startForegroundService(new Intent(this,SetupService.class));
         if(Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},2);
-        button(list,"1. Termuxをインストール / 開く",()->installApp("termux"));
-        button(list,"2. セットアップをコピーしてTermuxを開く",this::bootstrap);
-        TextView explain=new TextView(this);explain.setText("初回のみ、Termuxの準備が終わったら入力欄を長押し → 貼り付け → Enter。ダウンロード・PLE分離・NPU確認が終わったらGemmaへ戻ってください。再試行時は途中から再開します。");list.addView(explain);
-        button(list,"3. 会話を開く",()->startActivity(new Intent(this,MainActivity.class)));
-        button(list,"ホーム画面にGemmaを追加",()->startActivity(new Intent(this,MainActivity.class).putExtra("pin_to_home",true)));
-        button(list,"画像生成: Nightmareをインストール / 開く",()->installApp("nightmare"));
-        TextView imageInfo=new TextView(this);imageInfo.setText("画像生成を使う場合はNightmare側でNPU対応モデルを導入し、Settings → Advanced → APIを有効にしてください。表示されるトークンを下に貼り付けると接続できます。設定済みの端末では入力不要です。");list.addView(imageInfo);
-        EditText token=new EditText(this);token.setHint("NightmareのAPIトークン");token.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD);list.addView(token);
-        button(list,"画像エンジンへ接続",()->connectImages(token.getText().toString().trim()));
+        main.post(probe);
+        if(DownloadState.job(this,"bolt").optString("state").equals("running")&&DownloadState.prefs(this).getBoolean("command_ready",false))main.postDelayed(this::bootstrap,900);
+    }
+    final class Bridge {
+        @JavascriptInterface public String getState(){
+            JSONObject s=new JSONObject();try{
+                ActivityManager.MemoryInfo m=new ActivityManager.MemoryInfo();getSystemService(ActivityManager.class).getMemoryInfo(m);
+                s.put("device",Build.MODEL).put("soc",Build.VERSION.SDK_INT>=31?Build.SOC_MODEL:Build.HARDWARE).put("ram",m.totalMem).put("free",getFilesDir().getUsableSpace())
+                    .put("supported",supported()).put("termux",installed("com.termux")).put("nightmare",installed("com.abrah.nightmare"))
+                    .put("installed",DownloadState.prefs(SetupActivity.this).getBoolean("installed",false)).put("commandReady",DownloadState.prefs(SetupActivity.this).getBoolean("command_ready",false))
+                    .put("wifi",DownloadState.wifi(SetupActivity.this)).put("wifiOnly",DownloadState.prefs(SetupActivity.this).getBoolean("wifi_only",true))
+                    .put("origin",DownloadState.prefs(SetupActivity.this).getString("origin","https://huggingface.co")).put("health",health);
+                JSONObject jobs=new JSONObject();for(String id:new String[]{"bolt","termux","nightmare"})jobs.put(id,DownloadState.job(SetupActivity.this,id));s.put("jobs",jobs);
+            }catch(JSONException ignored){}return s.toString();
+        }
+        @JavascriptInterface public void action(String name,String data){
+            if(data==null||data.length()>2048)return;
+            main.post(()->{if(isDestroyed())return;try{act(name,new JSONObject(data));}catch(Exception e){note("操作を完了できませんでした。設定と通信を確認してください。");}});
+        }
+    }
+    private void act(String name,JSONObject data)throws Exception{
+        if(name.equals("preferences")){
+            String origin=data.optString("origin","https://huggingface.co").trim();URI uri=new URI(origin);
+            if(!"https".equals(uri.getScheme())||uri.getHost()==null||uri.getUserInfo()!=null||uri.getQuery()!=null||uri.getFragment()!=null||!(uri.getPath().isEmpty()||uri.getPath().equals("/"))){note("取得元は https://example.com の形式で入力してください。");return;}
+            DownloadState.prefs(this).edit().putString("origin",origin).putBoolean("wifi_only",data.optBoolean("wifiOnly",true)).apply();web.evaluateJavascript("toast('ダウンロード設定を保存しました')",null);return;
+        }
+        if(name.equals("openChat")){startActivity(new Intent(this,MainActivity.class));return;}
+        if(name.equals("pin")){startActivity(new Intent(this,MainActivity.class).putExtra("pin_to_home",true));return;}
+        if(!supported()){note("この端末向けのNPU版は未提供です。");return;}
+        if(name.equals("connectImages")){connectImages(data.optString("token").trim());return;}
+        String id=data.optString("id","bolt");if(!Arrays.asList("bolt","termux","nightmare").contains(id))return;
+        if(name.equals("pause")){
+            String phase=DownloadState.job(this,id).optString("phase");if(!phase.equals("download")&&!phase.equals("waiting"))return;
+            DownloadState.prefs(this).edit().putString("command_"+id,"pause").apply();web.evaluateJavascript("toast('一時停止しています。通信の応答をお待ちください')",null);return;
+        }
+        if(name.equals("reset")){
+            if(DownloadState.job(this,id).optString("state").equals("running")){note("一時停止が完了してから取り直してください。");return;}
+            new AlertDialog.Builder(this).setTitle("途中のダウンロードを取り直す？").setMessage("この取得の途中データだけを消します。導入済みのモデル・会話履歴は保持します。")
+                .setNegativeButton("戻る",null).setPositiveButton("取り直す",(d,w)->{
+                    if(id.equals("bolt")){DownloadState.prefs(this).edit().putString("command_bolt","reset").apply();bootstrap();}
+                    else{File f=new File(getCacheDir(),id+".apk.part");if(f.exists()&&!f.delete()){note("途中データを削除できませんでした。");return;}startPackage(id);}
+                }).show();return;
+        }
+        if(name.equals("start")){
+            DownloadState.prefs(this).edit().putString("command_"+id,"run").apply();if(id.equals("bolt"))bootstrap();else installApp(id);
+        }
     }
     private void bootstrap(){
-        if(!installed("com.termux")){note("先にTermuxをインストールして、一度開いてください。");return;}
-        if(checkSelfPermission("com.termux.permission.RUN_COMMAND")!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"},3);note("権限を許可してから、もう一度セットアップを押してください。");return;}
-        if(SetupService.base.isEmpty()){note("準備中です。数秒後に押してください。");return;}
-        startForegroundService(new Intent(this,SetupService.class));
+        if(launching)return;if(!installed("com.termux")){installApp("termux");return;}
+        if(checkSelfPermission("com.termux.permission.RUN_COMMAND")!=PackageManager.PERMISSION_GRANTED){pendingAction="bootstrap";requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"},3);return;}
+        startForegroundService(new Intent(this,SetupService.class));if(SetupService.base.isEmpty()){main.postDelayed(this::bootstrap,600);return;}
+        launching=true;main.postDelayed(()->launching=false,2000);
         String command="curl -fsS --connect-timeout 10 '"+SetupService.base+"/bootstrap.sh' -o \"$HOME/.gemma-setup.sh\" && bash \"$HOME/.gemma-setup.sh\"";
-        if(getSharedPreferences("setup",0).getBoolean("installed",false)){
-            Intent run=new Intent("com.termux.RUN_COMMAND").setClassName("com.termux","com.termux.app.RunCommandService");
-            run.putExtra("com.termux.RUN_COMMAND_PATH","/data/data/com.termux/files/usr/bin/sh");
-            run.putExtra("com.termux.RUN_COMMAND_ARGUMENTS",new String[]{"-c",command});run.putExtra("com.termux.RUN_COMMAND_BACKGROUND",true);
-            try{startService(run);SetupService.message="セットアップを再確認しています。既存モデルは再取得しません。";return;}catch(RuntimeException ignored){}
+        if(DownloadState.prefs(this).getBoolean("command_ready",false)||DownloadState.prefs(this).getBoolean("installed",false)){
+            try{runTermux(command);DownloadState.put(this,"bolt","state","running","message","保存済みのデータを確認して、続きから準備します");return;}catch(RuntimeException ignored){}
         }
-        getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Gemmaセットアップ",command));
-        startActivity(getPackageManager().getLaunchIntentForPackage("com.termux"));
+        getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Atelierセットアップ",command));
+        new AlertDialog.Builder(this).setTitle("最初の1回だけ、貼り付けます").setMessage("Termuxの準備が終わったら、画面を長押し → Paste（貼り付け）→ Enter。\n\nモデルの取得とNPUの準備が自動で進みます。この画面に戻って進捗を確認できます。")
+            .setPositiveButton("Termuxを開く",(d,w)->startActivity(getPackageManager().getLaunchIntentForPackage("com.termux"))).setNegativeButton("あとで",null).show();
+    }
+    private void runTermux(String command){
+        Intent run=new Intent("com.termux.RUN_COMMAND").setClassName("com.termux","com.termux.app.RunCommandService");
+        run.putExtra("com.termux.RUN_COMMAND_PATH","/data/data/com.termux/files/usr/bin/sh");run.putExtra("com.termux.RUN_COMMAND_ARGUMENTS",new String[]{"-c",command});run.putExtra("com.termux.RUN_COMMAND_BACKGROUND",true);startService(run);
     }
     private void connectImages(String token){
         if(!token.matches("[a-fA-F0-9]{48}")){note("NightmareのAPI画面に表示される48文字のトークンを入力してください。");return;}
-        if(checkSelfPermission("com.termux.permission.RUN_COMMAND")!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"},3);note("権限を許可してから、もう一度接続を押してください。");return;}
-        SetupService.imageToken=token;
-        String root="/data/data/com.termux/files/home/gemma-e4b";
-        String command="umask 077; curl -fsS '"+SetupService.base+"/image-token' -o '"+root+"/nightmare.token.new' && mv '"+root+"/nightmare.token.new' '"+root+"/nightmare.token' && sh '"+root+"/restart-after-setup.sh'";
-        Intent run=new Intent("com.termux.RUN_COMMAND").setClassName("com.termux","com.termux.app.RunCommandService");
-        run.putExtra("com.termux.RUN_COMMAND_PATH","/data/data/com.termux/files/usr/bin/sh");
-        run.putExtra("com.termux.RUN_COMMAND_ARGUMENTS",new String[]{"-c",command});run.putExtra("com.termux.RUN_COMMAND_BACKGROUND",true);
-        try{startService(run);note("接続設定を渡しました。Gemmaの会話画面で接続状態を確認してください。");}catch(RuntimeException e){note("Termuxの初回セットアップを先に完了してください。");}
+        if(checkSelfPermission("com.termux.permission.RUN_COMMAND")!=PackageManager.PERMISSION_GRANTED){pendingAction="images";pendingToken=token;requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"},3);return;}
+        if(SetupService.base.isEmpty()){note("準備中です。数秒後に再度接続してください。");return;}
+        SetupService.imageToken=token;String root="/data/data/com.termux/files/home/gemma-e4b";
+        runTermux("umask 077; curl -fsS '"+SetupService.base+"/image-token' -o '"+root+"/nightmare.token.new' && mv '"+root+"/nightmare.token.new' '"+root+"/nightmare.token' && sh '"+root+"/restart-after-setup.sh'");note("接続設定を渡しました。数秒後に接続状態へ反映されます。");
     }
-    private static String sha(File f)throws Exception {MessageDigest d=MessageDigest.getInstance("SHA-256");try(InputStream in=new FileInputStream(f)){byte[] b=new byte[65536];int n;while((n=in.read(b))>0)d.update(b,0,n);}StringBuilder s=new StringBuilder();for(byte b:d.digest())s.append(String.format(Locale.ROOT,"%02x",b&255));return s.toString();}
-    private void installApp(String app){
-        String pkg=app.equals("termux")?"com.termux":"com.abrah.nightmare";
-        if(installed(pkg)){startActivity(getPackageManager().getLaunchIntentForPackage(pkg));return;}
+    private void startPackage(String id){DownloadState.prefs(this).edit().putString("command_"+id,"run").apply();startForegroundService(new Intent(this,SetupService.class).putExtra("download",id));}
+    private void installApp(String id){
+        String pkg=id.equals("termux")?"com.termux":"com.abrah.nightmare";
+        if(installed(pkg)){Intent intent=getPackageManager().getLaunchIntentForPackage(pkg);if(intent!=null)startActivity(intent);return;}
+        File apk=new File(getCacheDir(),id+".apk");if(!apk.isFile()||!DownloadState.job(this,id).optString("state").equals("ready")){startPackage(id);return;}
         if(!getPackageManager().canRequestPackageInstalls()){
-            note("Gemmaから公式APKをインストールするため、次の画面で「この提供元を許可」をオンにし、戻って同じボタンを押してください。");
-            startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())));return;
+            pendingPackage=id;new AlertDialog.Builder(this).setTitle("公式APKのインストール許可").setMessage("次の画面で「この提供元を許可」をオンにして戻ってください。続けてAndroidのインストール確認を開きます。")
+                .setPositiveButton("設定を開く",(d,w)->startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())))).setNegativeButton("あとで",(d,w)->pendingPackage="").show();return;
         }
-        if(downloading)return;downloading=true;
-        String url=app.equals("termux")?"https://github.com/termux/termux-app/releases/download/v0.118.3/termux-app_v0.118.3%2Bgithub-debug_arm64-v8a.apk":"https://github.com/AbrahamPaulJ/nightmare-mobile/releases/download/v1.6.211/nightmare-1.6.211.apk";
-        String expected=app.equals("termux")?"72fdb596045116bf5ba1b5bdf5b26fddb9acc0bd074ad9f2da9eb0ae85e83a4e":"51d8366e1c644285d0f9d675170f11504b0623767d47b98a68216c068cbe2f1f";
-        worker.execute(()->{
-            try{
-                File target=new File(getCacheDir(),app+".apk");
-                if(!target.isFile()||!sha(target).equals(expected)){
-                    HttpURLConnection c=(HttpURLConnection)new URL(url).openConnection();c.setConnectTimeout(20000);c.setReadTimeout(30000);
-                    File part=new File(getCacheDir(),app+".apk.part");
-                    try(InputStream in=c.getInputStream();OutputStream out=new FileOutputStream(part)){
-                        byte[] b=new byte[65536];int n;long size=0,last=0;
-                        while((n=in.read(b))>0){out.write(b,0,n);size+=n;if(size>100L*1024*1024)throw new IOException("APK size exceeds limit");if(size-last>1024*1024){last=size;String msg=app+"取得中: "+size/(1024*1024)+" MB";main.post(()->status.setText(msg));}}
-                    }finally{c.disconnect();}
-                    if(!sha(part).equals(expected))throw new IOException("APKのSHA256が一致しません");
-                    if(!part.renameTo(target))throw new IOException("APKを保存できません");
-                }
-                main.post(()->{if(isDestroyed())return;Intent install=new Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://local.gemma.launcher.install/"+app+".apk"),"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(install);});
-            }catch(Exception e){main.post(()->{if(!isDestroyed())note("取得・検証に失敗しました。通信を確認して再試行してください。 "+e.getMessage());});}
-            finally{downloading=false;}
-        });
+        startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://local.gemma.launcher.install/"+id+".apk"),"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
     }
-    @Override public void onDestroy(){main.removeCallbacksAndMessages(null);worker.shutdownNow();super.onDestroy();}
+    @Override protected void onResume(){super.onResume();if(!pendingPackage.isEmpty()&&getPackageManager().canRequestPackageInstalls()){String id=pendingPackage;pendingPackage="";installApp(id);}}
+    @Override public void onRequestPermissionsResult(int code,String[] p,int[] r){
+        super.onRequestPermissionsResult(code,p,r);if(code==3){String action=pendingAction;pendingAction="";if(r.length>0&&r[0]==PackageManager.PERMISSION_GRANTED){if(action.equals("images")){connectImages(pendingToken);pendingToken="";}else bootstrap();}else note("セットアップにはTermuxの実行許可が必要です。");}
+    }
+    @Override public void onDestroy(){main.removeCallbacksAndMessages(null);worker.shutdownNow();if(web!=null){web.removeJavascriptInterface("Atelier");web.destroy();}super.onDestroy();}
 }
