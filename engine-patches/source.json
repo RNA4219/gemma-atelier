@@ -1,0 +1,5 @@
+{
+  "repository": "https://github.com/ggml-org/llama.cpp",
+  "revision": "d454a204ef2b63af357744809c05af897611a72e",
+  "patch_sha256": "642801ffc7b667efb0f213da05ec20212c264c0983773922fb4e684592bc3f1d"
+}

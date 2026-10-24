@@ -1,0 +1,232 @@
+diff --git a/common/arg.cpp b/common/arg.cpp
+index 267b848..25a4f47 100644
+--- a/common/arg.cpp
++++ b/common/arg.cpp
+@@ -3054,6 +3054,18 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
+             params.model.path = value;
+         }
+     ).set_examples({LLAMA_EXAMPLE_COMMON, LLAMA_EXAMPLE_EXPORT_LORA, LLAMA_EXAMPLE_DOWNLOAD, LLAMA_EXAMPLE_TOKENIZE}).set_env("LLAMA_ARG_MODEL"));
++    add_opt(common_arg(
++        {"--model-splits"}, "FILES",
++        "comma-separated ordered GGUF paths with custom names (requires --fit off)",
++        [](common_params & params, const std::string & value) {
++            auto paths = string_split<std::string>(value, ',');
++            if (paths.size() < 2 || paths.size() > 128 || std::any_of(paths.begin(), paths.end(), [](const std::string & p) { return p.empty(); })) {
++                throw std::invalid_argument("expected 2-128 nonempty GGUF paths");
++            }
++            params.model.path = paths.front();
++            params.model.splits = std::move(paths);
++        }
++    ).set_examples({LLAMA_EXAMPLE_COMMON}).set_env("LLAMA_ARG_MODEL_SPLITS"));
+     add_opt(common_arg(
+         {"-mu", "--model-url"}, "MODEL_URL",
+         "model download url (default: unused)",
+diff --git a/common/common.cpp b/common/common.cpp
+index 6ef3b78..50afc11 100644
+--- a/common/common.cpp
++++ b/common/common.cpp
+@@ -1243,6 +1243,10 @@ common_gguf_info common_get_gguf_info(const std::string & fname) {
+ 
+ common_init_result::common_init_result(common_params & params, bool model_only) :
+     pimpl(new impl{}) {
++    if (!params.model.splits.empty() && (params.fit_params || params.model.path != params.model.splits.front())) {
++        LOG_ERR("explicit model splits require --fit off and the first split as the model path\n");
++        return;
++    }
+     auto mparams = common_model_params_to_llama(params);
+     auto cparams = common_context_params_to_llama(params);
+ 
+@@ -1280,7 +1284,13 @@ common_init_result::common_init_result(common_params & params, bool model_only)
+             params.verbosity >= LOG_LEVEL_DEBUG ? GGML_LOG_LEVEL_DEBUG : GGML_LOG_LEVEL_ERROR);
+     }
+ 
+-    llama_model * model = llama_model_load_from_file(params.model.path.c_str(), mparams);
++    std::vector<const char *> split_paths;
++    for (const auto & path : params.model.splits) {
++        split_paths.push_back(path.c_str());
++    }
++    llama_model * model = split_paths.empty()
++        ? llama_model_load_from_file(params.model.path.c_str(), mparams)
++        : llama_model_load_from_splits(split_paths.data(), split_paths.size(), mparams);
+     if (model == NULL) {
+         return;
+     }
+diff --git a/common/common.h b/common/common.h
+index 70d6a67..85765f3 100644
+--- a/common/common.h
++++ b/common/common.h
+@@ -304,6 +304,7 @@ struct common_params_sampling {
+ 
+ struct common_params_model {
+     std::string path        = ""; // model local path
++    std::vector<std::string> splits; // explicit ordered GGUF paths
+     std::string url         = ""; // model url to download
+     std::string hf_repo     = ""; // HF repo
+     std::string hf_file     = ""; // HF file
+diff --git a/ggml/src/ggml-hexagon/CMakeLists.txt b/ggml/src/ggml-hexagon/CMakeLists.txt
+index 6ab5201..6dd1de5 100644
+--- a/ggml/src/ggml-hexagon/CMakeLists.txt
++++ b/ggml/src/ggml-hexagon/CMakeLists.txt
+@@ -1,3 +1,24 @@
++set(GGML_HEXAGON_PREBUILT_ROOT "" CACHE PATH "Host headers, generated IDL, and DSP libraries from a separate Hexagon build")
++if (GGML_HEXAGON_PREBUILT_ROOT)
++    foreach(required incs generated/htp_iface_stub.c generated/htp_iface.h lib/libggml-htp-v75.so)
++        if (NOT EXISTS "${GGML_HEXAGON_PREBUILT_ROOT}/${required}")
++            message(FATAL_ERROR "Missing Hexagon build artifact: ${required}")
++        endif()
++    endforeach()
++    ggml_add_backend_library(ggml-hexagon
++        ggml-hexagon.cpp htp-repack.cpp htp-drv.cpp
++        "${GGML_HEXAGON_PREBUILT_ROOT}/generated/htp_iface_stub.c")
++    target_include_directories(ggml-hexagon PRIVATE
++        "${GGML_HEXAGON_PREBUILT_ROOT}/incs"
++        "${GGML_HEXAGON_PREBUILT_ROOT}/incs/stddef"
++        "${GGML_HEXAGON_PREBUILT_ROOT}/utils/examples"
++        "${GGML_HEXAGON_PREBUILT_ROOT}/generated"
++        "${CMAKE_CURRENT_SOURCE_DIR}/htp")
++    target_link_libraries(ggml-hexagon PRIVATE log dl)
++    install(FILES "${GGML_HEXAGON_PREBUILT_ROOT}/lib/libggml-htp-v75.so" TYPE LIB)
++    return()
++endif()
++
+ file(TO_CMAKE_PATH "${HEXAGON_SDK_ROOT}"   HEXAGON_SDK_ROOT)
+ file(TO_CMAKE_PATH "${HEXAGON_TOOLS_ROOT}" HEXAGON_TOOLS_ROOT)
+ 
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 97250c2..5480023 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -70,6 +70,7 @@ target_include_directories(llama PUBLIC ../include)
+ target_compile_features   (llama PRIVATE cxx_std_17) # don't bump
+ 
+ target_link_libraries(llama PUBLIC ggml)
++target_link_libraries(llama PRIVATE vendor::hash)
+ 
+ if (BUILD_SHARED_LIBS)
+     set_target_properties(llama PROPERTIES POSITION_INDEPENDENT_CODE ON)
+diff --git a/src/llama-context.cpp b/src/llama-context.cpp
+index ca84fc4..937c8f5 100644
+--- a/src/llama-context.cpp
++++ b/src/llama-context.cpp
+@@ -1578,7 +1578,13 @@ llm_graph_result * llama_context::process_ubatch(const llama_ubatch & ubatch, ll
+         //const auto t_start_us = ggml_time_us();
+ 
+         // FIXME this call causes a crash if any model inputs were not used in the graph and were therefore not allocated
+-        res->set_inputs(&ubatch);
++        try {
++            res->set_inputs(&ubatch);
++        } catch (const std::exception & err) {
++            LLAMA_LOG_ERROR("%s: input validation failed: %s\n", __func__, err.what());
++            ret = GGML_STATUS_FAILED;
++            return nullptr;
++        }
+ 
+         //LLAMA_LOG_INFO("graph set inputs time: %.3f ms\n", (ggml_time_us() - t_start_us)/1000.0);
+     }
+diff --git a/src/llama-model.cpp b/src/llama-model.cpp
+index 6712f0f..9e27373 100644
+--- a/src/llama-model.cpp
++++ b/src/llama-model.cpp
+@@ -25,6 +25,10 @@
+ #include "ggml.h"
+ #include "ggml-cpp.h"
+ 
++extern "C" {
++#include "hash/sha256/sha256.h"
++}
++
+ #include <algorithm>
+ #include <cassert>
+ #include <cfloat>
+@@ -1343,6 +1347,31 @@ llama_model::llama_model(const llama_model_params & params) : params(params), pi
+     pimpl->has_tensor_overrides = params.tensor_buft_overrides && params.tensor_buft_overrides[0].pattern;
+ }
+ 
++void llama_model::verify_ple_rows(const int32_t * rows, size_t n_rows) const {
++    if (ple_row_sha256.empty() || n_rows == 0) {
++        return;
++    }
++    const auto * t = per_layer_tok_embd;
++    if (!rows || !t || !t->data || !t->buffer || !ggml_backend_buffer_is_host(t->buffer)) {
++        throw std::runtime_error("required PLE rows are not available on the host");
++    }
++    std::vector<int32_t> unique(rows, rows + n_rows);
++    std::sort(unique.begin(), unique.end());
++    unique.erase(std::unique(unique.begin(), unique.end()), unique.end());
++    const size_t row_bytes = ggml_row_size(t->type, t->ne[0]);
++    for (const int32_t row : unique) {
++        if (row < 0 || row >= t->ne[1]) {
++            throw std::runtime_error("PLE row index out of range");
++        }
++        unsigned char digest[SHA256_DIGEST_SIZE];
++        const auto * data = (const unsigned char *) t->data + (size_t) row * t->nb[1];
++        sha256_hash(digest, data, row_bytes);
++        if (memcmp(digest, ple_row_sha256.data() + (size_t) row * SHA256_DIGEST_SIZE, SHA256_DIGEST_SIZE) != 0) {
++            throw std::runtime_error("PLE integrity check failed for row " + std::to_string(row));
++        }
++    }
++}
++
+ llama_model::~llama_model() {
+     for (auto * lora : loras) {
+         delete lora;
+@@ -1868,6 +1897,26 @@ bool llama_model_base::load_tensors(llama_model_loader & ml) {
+ 
+     ml.done_getting_tensors();
+ 
++    const int64_t ple_required = gguf_find_key(ml.metadata, "atelier.ple.required");
++    const int64_t ple_hashes = gguf_find_key(ml.metadata, "atelier.ple.row_sha256");
++    if (ple_required >= 0 || ple_hashes >= 0) {
++        if (ple_required < 0 || gguf_get_kv_type(ml.metadata, ple_required) != GGUF_TYPE_BOOL ||
++            !gguf_get_val_bool(ml.metadata, ple_required) || ple_hashes < 0 ||
++            gguf_get_kv_type(ml.metadata, ple_hashes) != GGUF_TYPE_ARRAY ||
++            gguf_get_arr_type(ml.metadata, ple_hashes) != GGUF_TYPE_UINT8 ||
++            !per_layer_tok_embd || !ggml_is_matrix(per_layer_tok_embd) ||
++            per_layer_tok_embd->ne[1] <= 0 || per_layer_tok_embd->ne[1] > 1048576) {
++            throw std::runtime_error("invalid or missing required PLE integrity metadata");
++        }
++        const size_t count = (size_t) per_layer_tok_embd->ne[1] * SHA256_DIGEST_SIZE;
++        if (gguf_get_arr_n(ml.metadata, ple_hashes) != count) {
++            throw std::runtime_error("PLE row hashes do not match tensor shape");
++        }
++        const auto * data = (const uint8_t *) gguf_get_arr_data(ml.metadata, ple_hashes);
++        ple_row_sha256.assign(data, data + count);
++        LLAMA_LOG_INFO("%s: PLE integrity enabled for %lld rows\n", __func__, (long long) per_layer_tok_embd->ne[1]);
++    }
++
+     if (per_layer_tok_embd && ml.lazy.has(per_layer_tok_embd)) {
+         LLAMA_LOG_INFO("%s: enabling prefetch for '%s'\n", __func__, per_layer_tok_embd->name);
+ 
+diff --git a/src/llama-model.h b/src/llama-model.h
+index 9fe9d77..cc94b1f 100644
+--- a/src/llama-model.h
++++ b/src/llama-model.h
+@@ -850,6 +850,8 @@ struct llama_model {
+ 
+     // which tensors can be prefetched - driven by TENSOR_READ_LAZY
+     std::unordered_set<const ggml_tensor *> can_prefetch;
++    std::vector<uint8_t> ple_row_sha256;
++    void verify_ple_rows(const int32_t * rows, size_t n_rows) const;
+ 
+     // statically allocated context for assigning
+     struct llama_meta_device_get_split_state_userdata get_split_state_ud;
+diff --git a/src/models/gemma4.cpp b/src/models/gemma4.cpp
+index f4f80d3..85a445c 100644
+--- a/src/models/gemma4.cpp
++++ b/src/models/gemma4.cpp
+@@ -454,6 +454,7 @@ public:
+             if (prefetch) {
+                 llama_prefetch_rows(ple, ubatch->token, ubatch->n_tokens);
+             }
++            model.verify_ple_rows(ubatch->token, ubatch->n_tokens);
+             ggml_backend_tensor_set(tokens, ubatch->token, 0, ubatch->n_tokens * ggml_element_size(tokens));
+         } else {
+             const int32_t padding = 0;
+@@ -461,6 +462,7 @@ public:
+                 // [TAG_GEMMA4_IMG_PADDING]
+                 llama_prefetch_rows(ple, &padding, 1);
+             }
++            model.verify_ple_rows(&padding, 1);
+             ggml_backend_tensor_set(token0, &padding, 0, ggml_element_size(token0));
+         }
+     }

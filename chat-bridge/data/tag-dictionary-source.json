@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/DominikDoom/a1111-sd-webui-tagcomplete",
+  "commit": "209b1dd76b69e95ba6b1619ea5d13e68446607b7",
+  "source": "https://raw.githubusercontent.com/DominikDoom/a1111-sd-webui-tagcomplete/209b1dd76b69e95ba6b1619ea5d13e68446607b7/tags/danbooru.csv",
+  "sha256": "f936684fa0b041e9a55d35f2052588e28d95eef8672be6829241f8b1a7214732",
+  "bytes": 3518020,
+  "rows": 140782
+}

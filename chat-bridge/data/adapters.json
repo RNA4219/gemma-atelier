@@ -1,0 +1,155 @@
+[
+  {
+    "name": "add_detail.safetensors",
+    "kind": "lora",
+    "family": "SD 1.5",
+    "supported": false,
+    "bytes": 37861176,
+    "sha256": "47aaaf0d2945ca937151d61304946dd229b3f072140b85484bc93e38f2a6e2f7",
+    "note": "SD 1.5 Swapが必要。現在のSDXLには使用不可。"
+  },
+  {
+    "name": "aesthetic_anime_v1s.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 340768396,
+    "sha256": "2b83812dfa9e63d0ee1966cf202a22f4634b5cdb203d1fa2d66aa68e03cedf36",
+    "note": "ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "burumoge.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 42868252,
+    "sha256": "480ea378c86ca6a93b8033411b16bc8fc976094d6b69294baa3ae3525474274a",
+    "note": "ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "aimoge.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 42870052,
+    "sha256": "caad93f17258b240cdb01a896f79f912f70cc1dee568615c0844485d4a9e37b4",
+    "note": "ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "Arknights-lappland-Refined Horrormarea&Original outfits.safetensors",
+    "kind": "lora",
+    "family": "SD 1.5",
+    "supported": false,
+    "bytes": 75611647,
+    "sha256": "d1f143174fd05ff1c1cd4ecd84c99e409e441e8ead557b5903e990d99bfd5f44",
+    "note": "SD 1.5 Swapが必要。現在のSDXLには使用不可。"
+  },
+  {
+    "name": "boldline.safetensors",
+    "kind": "lora",
+    "family": "SD 1.5",
+    "supported": false,
+    "bytes": 9547800,
+    "sha256": "20328517466a07327e8156d9ea2227ed745775dae5190183c1b2e8a4f8853a60",
+    "note": "SD 1.5 Swapが必要。現在のSDXLには使用不可。"
+  },
+  {
+    "name": "chara_FateLordElMelloi_Olga-MarieAnimusphere_v1.safetensors",
+    "kind": "lora",
+    "family": "SD 1.5",
+    "supported": false,
+    "bytes": 37866124,
+    "sha256": "fe2f4d7c3576f8f10fabcf9856c27dcbb48dceeb1e55e332560beece5cad922e",
+    "note": "SD 1.5 Swapが必要。現在のSDXLには使用不可。"
+  },
+  {
+    "name": "futtoraillv1.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 57422740,
+    "sha256": "c94c19af9a1f333c9137008179d1406103f837a7afe76d087ee8095b895a3826",
+    "note": "画像側のみ適用。テキストエンコーダのLoRAは非対応。 ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "K0d0_style1.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 228463380,
+    "sha256": "90af92c57770a6282202619a0156071504c2f917e7819b43b93707305cb96dfc",
+    "note": "画像側のみ適用。テキストエンコーダのLoRAは非対応。 ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "LapplandIllustrious Lora_v1.1-4.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 28841652,
+    "sha256": "5be46378103279358cee9d3b8b3c6fe0db862f7e4d9447c1d943d3fffcb0f702",
+    "note": "画像側のみ適用。テキストエンコーダのLoRAは非対応。 ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "StS_IllustXL_Breast_Size_Slider_v1.0.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 8789076,
+    "sha256": "5abf981affa89303bc796631e3af87140aac7aa9f879300b89c45d16bc8b4d06",
+    "note": "一部の畳み込み層は適用対象外。 ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "Takeuchi Takashi[style]-Illus.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 25677188,
+    "sha256": "e1aefd05dcde972a1bfae52a5565b12b6e847df20696a1b08777ad4cbaa48ae2",
+    "note": "画像側のみ適用。テキストエンコーダのLoRAは非対応。 ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "USNR_STYLE_ILL_V1_lokr3-000024.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 916175032,
+    "sha256": "374b9e35641cf591e0ad30fae49b1295c2edc5e8d4e9dcaf1f704c30502e473c",
+    "note": "画像側のみ適用。テキストエンコーダのLoRAは非対応。 rank64へ近似。初回の準備に時間がかかります。 一部の畳み込み層は適用対象外。 ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "Wada Arco[style]-Illus.safetensors",
+    "kind": "lora",
+    "family": "SDXL",
+    "supported": true,
+    "bytes": 25701140,
+    "sha256": "7941966cd39815fa64780df3c518e51cd7d9ee9902ef38e6955568a257970848",
+    "note": "画像側のみ適用。テキストエンコーダのLoRAは非対応。 ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "wada_arco_PonyXL_style_v01.safetensors",
+    "kind": "lora",
+    "family": "SDXL / Pony",
+    "supported": true,
+    "bytes": 114536412,
+    "sha256": "f8030e04f993ab306a7283476dc9dc74c1c8c816b89c92f7ab2d75d574b11ccc",
+    "note": "Ponyで学習。Illustriousでの効果は未検証。 画像側のみ適用。テキストエンコーダのLoRAは非対応。 ファイルの個別画質は未検証。"
+  },
+  {
+    "name": "qwen_image_vae.safetensors",
+    "kind": "vae",
+    "family": "Qwen Image",
+    "supported": false,
+    "bytes": 253806246,
+    "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f",
+    "note": "専用NPU変換が必要。現在のモデル内蔵VAEと置き換え不可。"
+  },
+  {
+    "name": "sdxlVAE_sdxlVAE.safetensors",
+    "kind": "vae",
+    "family": "SDXL",
+    "supported": false,
+    "bytes": 334641164,
+    "sha256": "63aeecb90ff7bc1c115395962d3e803571385b61938377bc7089b36e81e92e2e",
+    "note": "専用NPU変換が必要。現在のモデル内蔵VAEと置き換え不可。"
+  }
+]

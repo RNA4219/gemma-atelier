@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#14211e"><title>Gemma Atelier</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/workflows.css"><link rel="manifest" href="/manifest.webmanifest"></head>
+<body><main>
+<header><div><span class="eyebrow">ON YOUR PHONE</span><h1>Gemma Atelier<span>話す。描く。</span></h1></div><button id="reset" class="quiet" type="button">新しい会話</button></header>
+<nav class="view-tabs" aria-label="使い方"><button id="view-chat" class="active" type="button" aria-pressed="true">会話</button><button id="view-workflow" type="button" aria-pressed="false">ワークフロー</button></nav>
+<div id="chat-view">
+<div class="toolbar"><label for="model">画像のモデル</label><select id="model"><option value="Illustrious-v16-DMD2-SDXL-8Gen3">イラスト · Illustrious</option><option value="CyberRealistic-v10-DMD2-SDXL-8Gen3">写真 · CyberRealistic</option></select></div>
+<details id="image-settings" class="image-settings"><summary>ネガティブ・プリセット <span id="settings-summary"></span></summary>
+<label for="negative-preset">プリセット</label><select id="negative-preset"></select>
+<label for="negative">ネガティブプロンプト（避けたい表現）</label><textarea id="negative" rows="3" maxlength="2000" spellcheck="false" placeholder="例：glossy, shiny skin, shiny clothes, plastic"></textarea>
+<div class="cfg-row"><label for="cfg">CFG（効き具合）</label><input id="cfg" type="number" min="1" max="3" step="0.1" value="1" inputmode="decimal"></div>
+<p id="cfg-note" class="setting-note"></p>
+<label for="preset-name">自分のプリセットとして保存</label><div class="preset-actions"><input id="preset-name" type="text" maxlength="40" placeholder="プリセット名"><button id="save-preset" class="quiet" type="button">保存</button><button id="delete-preset" class="quiet" type="button" disabled>削除</button></div>
+<p id="preset-status" class="setting-note" role="status">設定とプリセットはこのブラウザに保存されます。</p>
+</details>
+<p id="state" role="status">端末内のエンジンへ接続中…</p>
+<section id="chat" aria-label="会話" aria-live="polite"></section>
+<section id="welcome"><div class="orb">✳</div><h2>思い浮かんだことから。</h2><p>会話の途中で「描いて」と頼むと、<br>Gemmaが言葉を画像にします。</p><button class="suggestion" data-prompt="雪の森にいる赤いキツネを、水彩風のイラストで描いて。">雪の森のキツネを描いて ↗</button></section>
+<form id="form"><label class="sr-only" for="prompt">メッセージ</label><textarea id="prompt" rows="2" placeholder="話しかける、または「…を描いて」" required maxlength="4000"></textarea><div class="compose-bottom"><span>この端末内で生成</span><div class="compose-actions"><button id="convert-tags" class="quiet" type="button" disabled>タグに変換</button><button id="send" type="submit" disabled>送信 ↑</button></div></div></form>
+<section id="tag-panel" class="tag-panel" aria-labelledby="tag-heading" hidden><h2 id="tag-heading">生成するタグ</h2><p id="tag-source" class="tag-source"></p><label for="tags">追加・削除して調整できます</label><textarea id="tags" rows="4" maxlength="2000" spellcheck="false"></textarea><p id="tag-note" class="tag-note"></p><button id="generate-tags" type="button">このタグで生成</button></section>
+<p id="error" role="alert"></p><p class="footnote">画像の変更も、会話から新しく描き直します。</p>
+</div>
+<section id="workflow-view" hidden aria-label="ワークフロー編集">
+<div class="wf-heading"><div><h2>つないで描く。</h2><p>モデルを組み合わせて、下描きから仕上げまで。</p></div><span class="wf-badge">ON DEVICE</span></div>
+<div class="wf-templates"><label for="wf-template">始め方</label><select id="wf-template"><option value="single">1枚生成</option><option value="control">ControlNetでポーズ・構図を指定</option><option value="branch">2モデルで描き分け</option><option value="chain">生成 → 別モデルで仕上げ</option></select><button id="wf-new" class="quiet" type="button">作成</button></div>
+<div class="wf-toolbar"><button id="wf-add-prompt" class="quiet" type="button">＋プロンプト</button><button id="wf-add-image" class="quiet" type="button">＋参照画像</button><button id="wf-add-sample" class="quiet" type="button">＋生成</button><button id="wf-add-output" class="quiet" type="button">＋出力</button></div>
+<div class="wf-zoom"><button id="wf-fit" class="quiet" type="button">全体を表示</button><button id="wf-zoom-out" class="quiet" type="button" aria-label="キャンバスを縮小">−</button><span id="wf-zoom-label">100%</span><button id="wf-zoom-in" class="quiet" type="button" aria-label="キャンバスを拡大">＋</button></div>
+<p class="wf-hint">ノードをタップして設定。線は接続を表します。ヘッダーをドラッグして移動、キャンバスは縦横にスクロールできます。</p>
+<div id="wf-viewport" class="wf-viewport" tabindex="0" aria-label="ノードキャンバス"><div id="wf-canvas"><svg id="wf-links" aria-hidden="true"></svg><div id="wf-nodes"></div></div></div>
+<section id="wf-inspector" class="wf-inspector" aria-label="選択したノードの設定"></section>
+<div class="wf-run-bar"><button id="wf-run" type="button" disabled>このフローを実行</button><button id="wf-stop" class="quiet" type="button" disabled>中止</button><button id="wf-from-chat" class="quiet" type="button">会話・タグから取り込む</button></div>
+<p id="wf-state" role="status">画像エンジンを確認しています…</p><p id="wf-control-status" class="wf-note" role="status"></p><p id="wf-error" role="alert"></p>
+<details class="wf-library"><summary>保存・読込</summary><label for="wf-name">フローの名前</label><div class="wf-row"><input id="wf-name" maxlength="40" placeholder="フローの名前"><button id="wf-save" class="quiet" type="button">保存</button></div><label for="wf-saved">保存したフロー</label><select id="wf-saved"></select><div class="wf-row"><button id="wf-load" class="quiet" type="button">読み込む</button><button id="wf-delete" class="quiet" type="button">削除</button><button id="wf-export" class="quiet" type="button">JSONを書き出す</button><label class="wf-file">JSONを読み込む<input id="wf-import" type="file" accept="application/json,.json"></label></div><p class="wf-hint">編集内容と保存フローはこのブラウザに保存。JSONはGemma Atelier用です。ComfyUIのJSON・カスタムノードには対応していません。</p></details>
+<p id="wf-capabilities" class="wf-hint"></p>
+<details class="wf-library"><summary>手元から取り込んだLoRA・VAEと対応状況</summary><div id="wf-assets-list"></div></details>
+<section id="wf-results" aria-label="ワークフローの生成結果" aria-live="polite"></section>
+</section>
+</main><script src="/image-settings.js"></script><script src="/app.js"></script><script src="/workflows.js"></script></body></html>
