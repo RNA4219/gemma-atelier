@@ -6,7 +6,7 @@ nubia上でBoltとの会話と画像生成を使うためのアプリです。�
 
 **v1.2.0は導入ガイド・ダウンロード管理付きです。対象はSnapdragon 8 Gen 3（SM8650）・RAM16GB・Android12以上。NPUで起動できない端末では停止し、CPU推論へ切り替えません。**
 
-1. AndroidのChromeで[最新Release](https://github.com/RNA4219/gemma-atelier/releases/latest)を開きます。非公開の場合はアクセス可能なGitHubアカウントでログインしてください。
+1. AndroidのChromeで[最新Release](https://github.com/RNA4219/gemma-atelier/releases/latest)を開きます。公開リポジトリのため、ダウンロードにGitHubへのログインは不要です。
 2. `Gemma-Atelier-v1.2.0.apk`をダウンロードして開き、インストールまたは更新を選びます。
 3. 「はじめる」の案内に沿ってTermuxを導入し、一度開きます。Androidのインストール確認・権限要求を許可してください。
 4. 「モデルの準備をはじめる」から、初回だけTermuxで長押し→貼り付け→Enter。以後、モデル取得・PLE分離・NPU確認を自動で行います。
