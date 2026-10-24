@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="local.gemma.launcher" android:versionCode="4" android:versionName="1.2.1">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="local.gemma.launcher" android:versionCode="5" android:versionName="1.3.0">
     <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="35" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -10,6 +10,7 @@
     <queries><package android:name="com.termux" /><package android:name="com.android.chrome" /><package android:name="com.abrah.nightmare" /></queries>
     <application android:label="LLM Atelier" android:icon="@drawable/icon" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:usesCleartextTraffic="true" android:allowBackup="false">
         <receiver android:name=".BrandingReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter></receiver>
+        <receiver android:name=".CommandResultReceiver" android:exported="false" />
         <activity android:name=".SetupActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="gemma-atelier" android:host="models" /></intent-filter></activity>
         <provider android:name=".InstallFiles" android:authorities="local.gemma.launcher.install" android:exported="false" android:grantUriPermissions="true" />
         <service android:name=".SetupService" android:exported="false" android:foregroundServiceType="specialUse"><property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User initiated local NPU model setup and transfer to Termux" /></service>

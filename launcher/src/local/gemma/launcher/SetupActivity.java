@@ -20,7 +20,16 @@ public class SetupActivity extends Activity {
     private final ExecutorService worker=Executors.newSingleThreadExecutor();
     private volatile JSONObject health=new JSONObject();
     private String pendingPackage="",pendingAction="",pendingToken="";
-    private boolean launching;
+    private boolean launching,resumed;
+    private final Runnable advance=new Runnable(){public void run(){
+        if(isDestroyed())return;
+        if(resumed&&DownloadState.prefs(SetupActivity.this).getBoolean("install_flow",false)){
+            String stage=DownloadState.prefs(SetupActivity.this).getString("flow_stage","");
+            if(stage.equals("download_termux")&&DownloadState.job(SetupActivity.this,"termux").optString("state").equals("ready")){
+                DownloadState.prefs(SetupActivity.this).edit().putString("flow_stage","install_termux").apply();installApp("termux");
+            }
+        }main.postDelayed(this,1500);
+    }};
     private final Runnable finishUpdate=new Runnable(){public void run(){
         if(isDestroyed()||isFinishing())return;
         if(SetupService.runtimeCurrent(SetupActivity.this)){
@@ -57,14 +66,14 @@ public class SetupActivity extends Activity {
             @Override public void onPageFinished(WebView v,String url){if(getIntent().getData()!=null&&"models".equals(getIntent().getData().getHost()))v.evaluateJavascript("tab('models')",null);}
             @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return true;}
             @Override public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest r){
-                if(r.getUrl().toString().matches("file:///android_asset/setup\\.(html|css|js)"))return null;
+                if(r.getUrl().toString().matches("file:///android_asset/(setup\\.(html|css|js)|setup-state\\.js)"))return null;
                 return new WebResourceResponse("text/plain","UTF-8",new ByteArrayInputStream(new byte[0]));
             }
         });
         web.addJavascriptInterface(new Bridge(),"Atelier");web.loadUrl("file:///android_asset/setup.html");
         if(supported())startForegroundService(new Intent(this,SetupService.class));
         if(Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},2);
-        main.post(probe);
+        main.post(probe);main.post(advance);
         boolean updating=getIntent().getBooleanExtra("update_and_open",false)&&supported()&&DownloadState.prefs(this).getBoolean("installed",false);
         if(updating){main.postDelayed(this::bootstrap,900);main.postDelayed(finishUpdate,1000);}
         else if(DownloadState.job(this,"bolt").optString("state").equals("running")&&DownloadState.prefs(this).getBoolean("command_ready",false))main.postDelayed(this::bootstrap,900);
@@ -76,6 +85,10 @@ public class SetupActivity extends Activity {
                 s.put("device",Build.MODEL).put("soc",Build.VERSION.SDK_INT>=31?Build.SOC_MODEL:Build.HARDWARE).put("ram",m.totalMem).put("free",getFilesDir().getUsableSpace())
                     .put("supported",supported()).put("termux",installed("com.termux")).put("nightmare",installed("com.abrah.nightmare"))
                     .put("installed",DownloadState.prefs(SetupActivity.this).getBoolean("installed",false)).put("commandReady",DownloadState.prefs(SetupActivity.this).getBoolean("command_ready",false))
+                    .put("linked",DownloadState.prefs(SetupActivity.this).getBoolean("termux_linked",false)||DownloadState.prefs(SetupActivity.this).getBoolean("command_ready",false))
+                    .put("termuxOpened",DownloadState.prefs(SetupActivity.this).getBoolean("termux_opened",false)).put("runtimeCurrent",SetupService.runtimeCurrent(SetupActivity.this))
+                    .put("flowStage",DownloadState.prefs(SetupActivity.this).getString("flow_stage",""))
+                    .put("runPermission",checkSelfPermission("com.termux.permission.RUN_COMMAND")==PackageManager.PERMISSION_GRANTED)
                     .put("wifi",DownloadState.wifi(SetupActivity.this)).put("wifiOnly",DownloadState.prefs(SetupActivity.this).getBoolean("wifi_only",true))
                     .put("origin",DownloadState.prefs(SetupActivity.this).getString("origin","https://huggingface.co")).put("health",health);
                 JSONObject jobs=new JSONObject();for(String id:new String[]{"bolt","termux","nightmare"})jobs.put(id,DownloadState.job(SetupActivity.this,id));s.put("jobs",jobs);
@@ -95,6 +108,9 @@ public class SetupActivity extends Activity {
         if(name.equals("openChat")){startActivity(new Intent(this,MainActivity.class));return;}
         if(name.equals("pin")){startActivity(new Intent(this,MainActivity.class).putExtra("pin_to_home",true));return;}
         if(!supported()){note("この端末向けのNPU版は未提供です。");return;}
+        if(name.equals("prepare")){prepare();return;}
+        if(name.equals("repairLink")){linkTermux();return;}
+        if(name.equals("openTermux")){openTermux();return;}
         if(name.equals("connectImages")){connectImages(data.optString("token").trim());return;}
         String id=data.optString("id","bolt");if(!Arrays.asList("bolt","termux","nightmare").contains(id))return;
         if(name.equals("pause")){
@@ -113,21 +129,69 @@ public class SetupActivity extends Activity {
             DownloadState.prefs(this).edit().putString("command_"+id,"run").apply();if(id.equals("bolt"))bootstrap();else installApp(id);
         }
     }
+    private void prepare(){
+        DownloadState.prefs(this).edit().putBoolean("install_flow",true).apply();
+        if(!installed("com.termux")){
+            String stage=DownloadState.job(this,"termux").optString("state").equals("ready")?"install_termux":"download_termux";
+            DownloadState.prefs(this).edit().putString("flow_stage",stage).apply();installApp("termux");return;
+        }
+        if(!DownloadState.prefs(this).getBoolean("command_ready",false)&&!DownloadState.prefs(this).getBoolean("termux_linked",false)){
+            if(!DownloadState.prefs(this).getBoolean("termux_opened",false)){openTermux();return;}
+            linkTermux();return;
+        }
+        if(DownloadState.job(this,"bolt").optString("error_code").equals("termux_link")){linkTermux();return;}
+        DownloadState.prefs(this).edit().putString("command_bolt","run").apply();bootstrap();
+    }
+    private void openTermux(){
+        Intent intent=getPackageManager().getLaunchIntentForPackage("com.termux");
+        if(intent==null){note("先にTermuxをインストールしてください。");return;}
+        new AlertDialog.Builder(this).setTitle("Termuxの初期準備")
+            .setMessage("Termuxを開き、最初の展開が終わったらLLM Atelierへ戻ってください。文字やコマンドの入力は不要です。次に「Termuxとの接続を許可」を押します。")
+            .setPositiveButton("Termuxを開く",(d,w)->{DownloadState.prefs(this).edit().putBoolean("termux_opened",true).putString("flow_stage","link_termux").apply();startActivity(intent);}).setNegativeButton("あとで",null).show();
+    }
+    private void linkTermux(){
+        if(!installed("com.termux")){installApp("termux");return;}
+        new AlertDialog.Builder(this).setTitle("Termuxとの接続を許可")
+            .setMessage("次の画面で「Termux」のフォルダを選び、「このフォルダを使用」→「許可」を押してください。表示されない場合は左上のメニューからTermuxを選びます。\n\n既存設定をバックアップし、LLM Atelierからの起動を許可する設定を追加します。コマンドの貼り付けは不要です。")
+            .setPositiveButton("フォルダを選ぶ",(d,w)->startActivityForResult(TermuxLink.picker(),41)).setNegativeButton("あとで",null).show();
+    }
+    @Override protected void onActivityResult(int code,int result,Intent data){
+        super.onActivityResult(code,result,data);
+        if(code!=41)return;
+        if(result!=RESULT_OK||data==null){note("接続設定はまだ完了していません。「Termuxとの接続を許可」から再開できます。");return;}
+        Uri tree=data.getData();
+        worker.execute(()->{
+            try{
+                TermuxLink.configure(this,tree);
+                DownloadState.prefs(this).edit().putBoolean("termux_linked",true).putString("flow_stage","model").apply();
+                DownloadState.put(this,"bolt","error_code","");
+                main.post(()->{if(!isDestroyed())prepare();});
+            }catch(Exception error){main.post(()->{if(!isDestroyed())note(error instanceof IOException?error.getMessage():"Termuxの設定へアクセスできませんでした。Termuxを一度開き、フォルダの許可をやり直してください。");});}
+        });
+    }
     private void bootstrap(){
         if(launching)return;if(!installed("com.termux")){installApp("termux");return;}
+        if(!DownloadState.prefs(this).getBoolean("command_ready",false)&&!DownloadState.prefs(this).getBoolean("termux_linked",false)){prepare();return;}
         if(checkSelfPermission("com.termux.permission.RUN_COMMAND")!=PackageManager.PERMISSION_GRANTED){pendingAction="bootstrap";requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"},3);return;}
         startForegroundService(new Intent(this,SetupService.class));if(SetupService.base.isEmpty()){main.postDelayed(this::bootstrap,600);return;}
         launching=true;main.postDelayed(()->launching=false,2000);
         String command="curl -fsS --connect-timeout 10 '"+SetupService.base+"/bootstrap.sh' -o \"$HOME/.gemma-setup.sh\" && bash \"$HOME/.gemma-setup.sh\"";
-        if(DownloadState.prefs(this).getBoolean("command_ready",false)||DownloadState.prefs(this).getBoolean("installed",false)){
-            try{runTermux(command);DownloadState.put(this,"bolt","state","running","message","保存済みのデータを確認して、続きから準備します");return;}catch(RuntimeException ignored){}
-        }
-        getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("LLM Atelierセットアップ",command));
-        new AlertDialog.Builder(this).setTitle("最初の1回だけ、貼り付けます").setMessage("Termuxの準備が終わったら、画面を長押し → Paste（貼り付け）→ Enter。\n\nモデルの取得とNPUの準備が自動で進みます。この画面に戻って進捗を確認できます。")
-            .setPositiveButton("Termuxを開く",(d,w)->startActivity(getPackageManager().getLaunchIntentForPackage("com.termux"))).setNegativeButton("あとで",null).show();
+        DownloadState.put(this,"bolt","state","running","phase","connection","error_code","","message","Termuxへ接続し、準備を始めます");
+        DownloadState.prefs(this).edit().putString("flow_stage","model").apply();
+        try{runTermux(command,true);web.evaluateJavascript("tab('downloads')",null);}
+        catch(RuntimeException error){DownloadState.put(this,"bolt","state","error","error_code","termux_link","message","Termuxを起動できませんでした。接続の許可を設定し直してください。");}
     }
     private void runTermux(String command){
+        runTermux(command,false);
+    }
+    private void runTermux(String command,boolean bootstrap){
         Intent run=new Intent("com.termux.RUN_COMMAND").setClassName("com.termux","com.termux.app.RunCommandService");
+        if(bootstrap){
+            String request=UUID.randomUUID().toString();DownloadState.prefs(this).edit().putString("bootstrap_request",request).apply();
+            Intent result=new Intent(this,CommandResultReceiver.class).setData(Uri.parse("atelier-result:"+request)).putExtra("request",request);
+            run.putExtra("com.termux.RUN_COMMAND_PENDING_INTENT",PendingIntent.getBroadcast(this,0,result,PendingIntent.FLAG_ONE_SHOT|PendingIntent.FLAG_MUTABLE));
+        }
+        run.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL","LLM Atelierの準備");
         run.putExtra("com.termux.RUN_COMMAND_PATH","/data/data/com.termux/files/usr/bin/sh");run.putExtra("com.termux.RUN_COMMAND_ARGUMENTS",new String[]{"-c",command});run.putExtra("com.termux.RUN_COMMAND_BACKGROUND",true);startService(run);
     }
     private void connectImages(String token){
@@ -148,7 +212,8 @@ public class SetupActivity extends Activity {
         }
         startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("content://local.gemma.launcher.install/"+id+".apk"),"application/vnd.android.package-archive").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));
     }
-    @Override protected void onResume(){super.onResume();if(!pendingPackage.isEmpty()&&getPackageManager().canRequestPackageInstalls()){String id=pendingPackage;pendingPackage="";installApp(id);}}
+    @Override protected void onResume(){super.onResume();resumed=true;if(!pendingPackage.isEmpty()&&getPackageManager().canRequestPackageInstalls()){String id=pendingPackage;pendingPackage="";installApp(id);}}
+    @Override protected void onPause(){resumed=false;super.onPause();}
     @Override public void onRequestPermissionsResult(int code,String[] p,int[] r){
         super.onRequestPermissionsResult(code,p,r);if(code==3){String action=pendingAction;pendingAction="";if(r.length>0&&r[0]==PackageManager.PERMISSION_GRANTED){if(action.equals("images")){connectImages(pendingToken);pendingToken="";}else bootstrap();}else note("セットアップにはTermuxの実行許可が必要です。");}
     }

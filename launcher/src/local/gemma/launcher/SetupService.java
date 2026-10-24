@@ -78,7 +78,7 @@ public class SetupService extends Service {
                 if(progress.optBoolean("command_ready"))DownloadState.prefs(this).edit().putBoolean("command_ready",true).apply();
                 if(progress.optBoolean("ack_reset")&&DownloadState.prefs(this).getString("command_bolt","").equals("reset"))
                     DownloadState.prefs(this).edit().putString("command_bolt","run").apply();
-                if(next.equals("complete"))getSharedPreferences("setup",0).edit().putBoolean("installed",true).putString("runtime_version",progress.optString("version")).apply();
+                if(next.equals("complete"))getSharedPreferences("setup",0).edit().putBoolean("installed",true).putString("runtime_version",progress.optString("version")).putBoolean("install_flow",false).putString("flow_stage","ready").apply();
                 reply(out,200,"application/json","{}".getBytes("UTF-8"));return;
             }
             if(!request[0].equals("GET")){reply(out,405,"text/plain",new byte[0]);return;}

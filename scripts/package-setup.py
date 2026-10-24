@@ -28,7 +28,7 @@ def main():
                  'boot-atelier.sh', 'restart-after-setup.sh']:
         payload[name] = ROOT / 'scripts' / name
     assets = ROOT / 'launcher/assets'; assets.mkdir(exist_ok=True)
-    manifest = {'version': '1.2.1', 'engine_commit': 'd454a204ef2b63af357744809c05af897611a72e',
+    manifest = {'version': '1.3.0', 'engine_commit': 'd454a204ef2b63af357744809c05af897611a72e',
                 'soc': 'SM8650', 'hexagon': 'v75', 'files': []}
     files = {}
     for name, source in payload.items():

@@ -9,7 +9,7 @@ function call(action,data={}){if(window.Atelier)Atelier.action(action,JSON.strin
 function tab(name){document.querySelectorAll('.view').forEach(v=>v.hidden=v.id!==name);document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('selected',b.dataset.tab===name);if(b.dataset.tab===name)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});window.scrollTo(0,0);}
 function html(id,value){if($(id).innerHTML!==value)$(id).innerHTML=value;}
 const button=(text,action,id='bolt',cls='primary')=>`<button class="${cls}" data-action="${action}" data-id="${id}">${text}</button>`;
-const phaseLabel={prerequisites:'環境を準備中',runtime:'準備中',download:'ダウンロード中',waiting:'再接続中',verify:'ファイルを確認中',split:'PLEを準備中',npu:'NPUを起動中',ready:'準備完了'};
+const phaseLabel={connection:'Termuxへ接続中',prerequisites:'環境を準備中',runtime:'準備中',download:'ダウンロード中',waiting:'再接続中',verify:'ファイルを確認中',split:'PLEを準備中',npu:'NPUを起動中',ready:'準備完了'};
 const names={bolt:'Nemotron Bolt',termux:'Termux',nightmare:'Nightmare'};
 function job(id){const j={...(state.jobs?.[id]||{})};if((id==='bolt'&&state.installed&&!j.state)||(id==='termux'&&state.termux)||(id==='nightmare'&&state.nightmare))Object.assign(j,{state:'complete',phase:'ready',message:id==='bolt'?'この端末に導入済みです':'インストール済みです'});return j;}
 function downloadCard(id){
@@ -19,7 +19,8 @@ function downloadCard(id){
  let actions='';
  if(running){if(['download','waiting'].includes(j.phase))actions=button('一時停止','pause',id,'secondary');}
  else if(complete)actions=id==='bolt'?button('会話を開く ↗','openChat'):button('開く','start',id,'secondary');
- else actions=button(ready?'インストール':paused||error?'続きから再開':'ダウンロード','start',id)+(paused||error?button('取り直す','reset',id,'text-button'):'');
+ else if(id==='bolt'&&(!state.linked||j.error_code==='termux_link'))actions=button('接続を設定する','prepare');
+ else actions=button(ready?'インストール':paused||error?'続きから再開':'ダウンロード',id==='bolt'?'prepare':'start',id)+(paused||error?button('取り直す','reset',id,'text-button'):'');
  const stale=running&&j.updated_at&&Date.now()/1000-j.updated_at>35;
  if(stale)actions=button('接続し直す','start',id,'secondary');
  return `<article class="panel"><div class="card-top"><div class="model-icon ${id==='nightmare'?'image':''}" aria-hidden="true">${id==='bolt'?'ϟ':id==='termux'?'›_':'✧'}</div><div><h2>${names[id]}</h2><p>${description}</p></div><span class="pill ${complete||ready?'good':error||paused?'warn':''}">${label}</span></div>
@@ -29,20 +30,17 @@ function downloadCard(id){
  ${actions?`<div class="actions">${actions}</div>`:''}</article>`;
 }
 function render(s){
- state=s;const bolt=job('bolt'),running=bolt.state==='running',ready=s.installed,health=s.health||{};
+ state=s;const bolt=job('bolt'),running=bolt.state==='running',ready=s.installed&&s.runtimeCurrent,health=s.health||{},step=setupStep(s);
  $('network').textContent=s.wifi?'● Wi-Fi':'Wi-Fi未接続';$('network').className='pill '+(s.wifi?'good':'warn');
- let heading=ready?'話す準備、<br>できています。':'あなたのスマホに、<br>小さなアトリエを。';
- let detail=ready?'Boltとの会話も、画像づくりも。<br>いつもの画面から続けられます。':'モデルの取得からNPUの準備まで、<br>ひとつずつ案内します。';
- let action=ready?button('会話をはじめる ↗','openChat'):running?'<button class="primary" data-tab="downloads">準備の進み具合を見る ↓</button>':button(!s.termux?'Termuxを準備する →':'モデルの準備をはじめる →','start',!s.termux?'termux':'bolt');
- if(!s.supported){heading='この端末は、<br>対応待ちです。';detail='現在のNPU版はSnapdragon 8 Gen 3・RAM 16GB向けです。';action='<button disabled>NPU対応版が必要です</button>';}
- html('welcome',`<div class="hero"><span class="eyebrow">PRIVATE BY DESIGN</span><h1>${heading}</h1><p>${detail}</p>${action}</div>`);
- const steps=[['実行環境を整える',s.termux?'Termuxはインストール済みです':'公式Termuxを取得して、Androidでインストール',s.termux],['会話モデルを準備する',ready?'Bolt + PLEの準備ができています':running?(bolt.message||'モデルの準備中です'):'約5.8 GiBを取得。途中から再開できます',ready],['NPUで会話をはじめる',ready?'ホーム画面のLLM Atelierから起動できます':'準備の最後に、NPUで動くことを確認します',ready]];
- let first=true;html('guide',`<div class="section-title"><h2>${ready?'準備できたこと':'はじめるまでの3ステップ'}</h2><span>${steps.filter(x=>x[2]).length} / 3</span></div><div class="panel">${steps.map(([title,note,done],i)=>{const active=!done&&first;if(active)first=false;return `<div class="step ${done?'done':active?'current':''}"><span class="step-number">${done?'✓':i+1}</span><div><b>${title}</b><p>${esc(note)}</p></div></div>`;}).join('')}</div>`);
+ const action=step.action?button(esc(step.label),'prepare'===step.action?'prepare':step.action):step.tab?`<button class="primary" data-tab="${step.tab}">${esc(step.label)}</button>`:'<button disabled>NPU対応版が必要です</button>';
+ html('welcome',`<div class="hero"><span class="eyebrow">LLM ATELIER SETUP</span><h1>${esc(step.title)}</h1><p>${esc(step.detail)}</p>${action}</div>`);
+ const steps=[['Termuxをインストール',s.termux?'インストール済み':'公式APKを取得し、Androidの確認画面で許可',s.termux],['Termuxとの接続を許可',s.linked?'接続設定済み。コマンド入力は不要です':'一度開いてから、Termuxフォルダへのアクセスを許可',s.linked],['Boltを取得・NPUで確認',ready?'モデルとNPUの初回確認が完了しています':running?(bolt.message||'準備中です'):'約5.8 GiBを取得。中断しても続きから再開',ready]];
+ let first=true;html('guide',`<div class="section-title"><h2>会話のセットアップ</h2><span>${steps.filter(x=>x[2]).length} / 3</span></div><div class="panel">${steps.map(([title,note,done],i)=>{const active=!done&&first;if(active)first=false;return `<div class="step ${done?'done':active?'current':''}"><span class="step-number">${done?'✓':i+1}</span><div><b>${title}</b><p>${esc(note)}</p></div></div>`;}).join('')}</div><div class="panel"><div class="card-top"><div><h2>画像生成の準備</h2><p>会話のセットアップとは別の工程です</p></div><span class="pill ${health.images?'good':'warn'}">${health.images?'API接続済み':'未完了'}</span></div><p class="job-message">${health.images?'画像APIに接続しています。利用できる画像モデルはNightmare側で確認できます。':'画像モデルの導入とAPIの接続設定が必要です。会話だけ先に使えます。'}</p><button class="secondary" data-tab="models">画像の準備を確認</button></div>`);
  html('device',`<div class="panel"><div class="device-line"><strong>${esc(s.device)}</strong><span>${esc(s.soc)} · RAM ${(s.ram/1073741824).toFixed(0)} GiB</span></div><div class="device-line"><strong>空き容量 ${size(s.free)}</strong><span class="pill ${s.supported?'good':'warn'}">${s.supported?'NPU対応':'未対応'}</span></div><p class="hint">${ready?'導入済みのモデルを再利用します。会話履歴やキャラクター設定もそのまま。':'初回は空き約14 GiBが目安です。取得データと分離後のモデルを一時的に両方保存し、完了後に元データを片付けます。'}</p></div>`);
  html('jobs',['bolt','termux','nightmare'].map(downloadCard).join(''));
  const images=!!health.images;
- html('collection',`<article class="panel"><div class="card-top"><div class="model-icon">ϟ</div><div><h2>Nemotron Bolt</h2><p>NVIDIA · 会話 / E4B</p></div><span class="pill ${ready?'good':''}">${ready?'導入済み':'未導入'}</span></div><p class="job-message">会話、キャラクター、画像生成のプロンプトづくり。普段使いの会話モデルです。</p><div class="tags"><span>NPU推論</span><span>PLE分離</span><span>端末内で処理</span></div><div class="actions">${ready?button('会話を開く ↗','openChat'):'<button class="primary" data-tab="downloads">ダウンロードへ</button>'}${ready?button('環境を再確認','start','bolt','text-button'):''}</div></article>
- <article class="panel"><div class="card-top"><div class="model-icon image">✧</div><div><h2>画像のアトリエ</h2><p>Nightmare · NPUエンジン</p></div><span class="pill ${images?'good':''}">${images?'接続済み':s.nightmare?'導入済み':'追加できます'}</span></div><p class="job-message">${images?'会話からの画像生成とワークフローを、いつもの画面で使えます。':'エンジンを追加して、NPU対応の画像モデルを選びます。画像モデルの取得はNightmare側で行います。'}</p><div class="tags"><span>複数モデル</span><span>会話と連携</span><span>ワークフロー</span></div><div class="actions">${images?button('画像づくりへ ↗','openChat'):button(s.nightmare?'Nightmareを開く':'画像エンジンを追加','start','nightmare','secondary')}</div></article>`);
+ html('collection',`<article class="panel"><div class="card-top"><div class="model-icon">ϟ</div><div><h2>Nemotron Bolt</h2><p>NVIDIA · 会話 / E4B</p></div><span class="pill ${ready?'good':''}">${ready?'導入済み':s.installed?'更新待ち':'未導入'}</span></div><p class="job-message">会話、キャラクター、画像生成のプロンプトづくり。普段使いの会話モデルです。</p><div class="tags"><span>NPU推論</span><span>PLE分離</span><span>端末内で処理</span></div><div class="actions">${ready?button('会話を開く ↗','openChat'):s.installed?button('更新して続ける','prepare'):'<button class="primary" data-tab="home">セットアップへ</button>'}${ready?button('環境を再確認','start','bolt','text-button'):''}</div></article>
+ <article class="panel"><div class="card-top"><div class="model-icon image">✧</div><div><h2>画像のアトリエ</h2><p>Nightmare · NPUエンジン</p></div><span class="pill ${images?'good':'warn'}">${images?'API接続済み':'準備が必要'}</span></div><p class="job-message">画像モデルの取得・APIの有効化はNightmare側で行います。APKを入れただけでは画像生成の準備は完了しません。</p><ol class="instructions"><li>${s.nightmare?'✓ エンジン導入済み':'画像エンジンを導入'}</li><li>NightmareでNPU対応の画像モデルを取得</li><li>${images?'✓ API接続済み':'下の接続設定からAPIトークンを設定'}</li></ol><div class="actions">${button(s.nightmare?'Nightmareを開く':'画像エンジンを追加','start','nightmare','secondary')}${images?button('画像づくりへ ↗','openChat'):''}</div></article>`);
  $('download-dot').hidden=!Object.values(s.jobs||{}).some(j=>j.state==='running');
  if(!settingsLoaded){$('wifi-only').checked=s.wifiOnly;$('source').value=['https://huggingface.co','https://hf-mirror.com'].includes(s.origin)?s.origin:'custom';$('custom-source').value=s.origin;sourceChange();settingsLoaded=true;}
 }
