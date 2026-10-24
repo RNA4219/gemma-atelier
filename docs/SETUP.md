@@ -1,4 +1,4 @@
-# 導入に必要な環境
+# 初回セットアップ
 
 ## セットアップ済みのnubia
 
@@ -8,15 +8,28 @@ ReleaseからAPKを上書きインストールして、Gemmaを押します。�
 
 ## 新しい端末へ移す場合
 
-**新端末向けの一括インストーラーは、このReleaseにはありません。** SnapdragonやAndroidの違う端末で動くことも保証していません。以下を先に準備する必要があります。
+v1.1.0の対象はSnapdragon 8 Gen 3（SM8650 / Hexagon v75）、RAM16GB、Android12以上です。実機確認の対象はnubia NX721J・Android15。SoCが一致してもメーカー側のDSP公開条件によって起動できない場合があるため、全機種対応とはしていません。NPUの43/43層配置・v75ライブラリ・PLE整合性の有効化が確認できなければ停止します。CPUへの代替実行はありません。
 
-- 公式Termuxと、必要なら同じ署名系列のTermux:Boot。
-- Termuxの`~/.termux/termux.properties`で`allow-external-apps = true`。Android側でGemmaにTermuxのRUN_COMMAND権限を付与。
-- Termux内の`curl`、`flock`、Termux:APIアプリを必要としない標準の`termux-wake-lock`。
-- 対象Hexagon v75向けにビルドしたBolt対応エンジンとDSPライブラリ。
-- 公式Bolt GGUFから分離した`core.gguf`、`ple.gguf`、`manifest.json`。
-- 現用NightmareのローカルAPI（8820）と、その端末にインストール済みの画像モデル。認証トークンは各端末内で用意し、リポジトリへ置かない。
-- Chrome。既存の保存キーと同じURLで会話UIを開く。
+初回は空き16GiB以上、Wi-Fi、Chromeが必要です。約6.2GBのモデルを取得し、PLE分離・全テンソル照合の成功後に、セットアップ自身が取得した一時原本だけを削除します。重みを再量子化しません。
+
+1. [最新Release](https://github.com/RNA4219/gemma-atelier/releases/latest)からAPKを入れます。非公開のため、アクセス権のあるGitHubアカウントでログインしてください。アカウントの認証情報をアプリへ入力する必要はありません。
+2. Gemmaの「初回セットアップ」→「1. Termuxをインストール / 開く」。初回のみGemmaからのAPK導入を許可し、戻って同じボタンを押します。公式GitHub版Termux 0.118.3をSHA256照合後に開きます。Android側のインストール確認を完了してください。
+3. Termuxを一度開き、初期ファイルの展開が終わるまで待ちます。
+4. Gemmaに戻り「2. セットアップをコピーしてTermuxを開く」。実行許可を求められたら許可し、もう一度押します。
+5. Termuxの入力欄を長押しして貼り付け、Enterを押します。必要なパッケージ、同梱NPU実行ファイル、Boltの取得、PLE分離、起動確認が進みます。初回コマンドの貼り付けはAndroidのアプリ分離に対応する利用者操作です。
+6. 「BoltのNPU準備が完了」と表示されたらGemmaへ戻り「3. 会話を開く」。必要なら「ホーム画面にGemmaを追加」を押します。
+
+通信が切れた場合は手順4から再試行してください。モデル取得は途中ファイルから再開します。ハッシュ不一致はエラーにし、取得したモデルを実行しません。NPU起動エラーはTermuxの`~/gemma-e4b/bolt-server.log`で確認できます。
+
+再起動後は最初のロック解除を行い、ホームのGemmaを押します。通常利用でTermuxを手動で開く必要はありません。既存Termux:Boot向けの起動スクリプトも配置しますが、Termux:Boot自体は導入しません。nubiaの省電力管理で停止される場合はGemmaとTermuxの自動起動・バックグラウンド動作を許可してください。
+
+## 画像生成の準備
+
+セットアップ画面から公式Nightmare APKを導入できます。Nightmare側でNPU対応の画像モデルを設定し、APIを有効にして、表示されたAPIトークンをGemmaのセットアップ画面へ貼り付けます。トークンは端末内の認証付きloopback接続でTermuxの非公開ファイルへ渡します。
+
+会話は画像エンジン未設定でも利用できます。既存nubiaの更新ではNightmareのモデル・APIトークン・画像・会話履歴を消去しません。**新規端末へのIllustrious DMD2・CyberRealistic DMD2・LoRAの自動取得とモデル一覧の自動調整は、この版に含まれません。** 既定UIの画像モデル名とNightmare側の導入モデルが一致する必要があります。画像生成の成功は、会話NPUセットアップの完了条件とは別です。
+
+## 配置
 
 現行の配置は次のとおりです。
 
@@ -43,12 +56,16 @@ ReleaseからAPKを上書きインストールして、Gemmaを押します。�
 
 `scripts/termux-engine-env.sh`は端末では`engine-env.sh`という名前で使います。既存の署名やモデル配置と合うように準備し、NPUプロセスは通常のTermuxサービスから起動します。PCの`run-as`から直接NPUプロセスを動かさないでください。
 
-通常設定はBolt、non-thinking、context8192、MTPなし、Gemmaへの自動fallbackなしです。モデルや履歴はこのAPKに内包しません。APKの導入と、上記の推論環境の導入は別です。
+通常設定はBolt、non-thinking、context8192、MTPなし、Gemmaへの自動fallbackなしです。モデルや履歴はAPKに内包しません。NPUランタイムをAPKから渡し、モデルは公式配布元の固定revisionからSHA256照合付きで取得します。PLEは内蔵UFS上の専用GGUFから必要な行を読む方式です。
 
 ## 起動の仕組み
 
-Gemmaの前面サービスがTermuxのRunCommandServiceへbindingし、停止中なら固定の`start-from-home.sh`を実行します。会話APIと画像APIの準備を待ってChromeを開きます。20秒間隔で接続状態を見て、再起動要求には30秒以上間隔を空けます。
+Gemmaの前面サービスがTermuxのRunCommandServiceへbindingし、停止中なら固定の`start-from-home.sh`を実行します。会話APIの準備を待ってChromeを開きます。20秒間隔で接続状態を見て、再起動要求には30秒以上間隔を空けます。
 
 Boot入口はBoltのPLEファイルが利用可能になるまで待機します。初回ロック解除前に暗号化された端末内データを読むことはできません。
 
 詳しい外部コマンドの仕様は[Termuxの公式資料](https://github.com/termux/termux-app/wiki/RUN_COMMAND-Intent)を参照してください。
+
+## 検証範囲
+
+新規環境を初期化した実機試験は行わず、既存NX721J上で導入経路を確認します。HTTP再開・ハッシュ不一致・NPU判定は小さなテスト用データで確認します。長時間性能試験、端末再起動の再試験、別メーカーのDSP互換性試験は含みません。

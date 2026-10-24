@@ -54,7 +54,7 @@ public class KeepService extends Service {
                 byte[] buffer = new byte[4096]; int count;
                 while ((count=input.read(buffer))!=-1) { data.write(buffer,0,count); if(data.size()>65536)return false; }
                 JSONObject result = new JSONObject(data.toString("UTF-8"));
-                return result.optBoolean("gemma") && result.optBoolean("images");
+                return result.optBoolean("gemma");
             }
         } catch (Exception error) { return false; }
         finally { if(connection!=null)connection.disconnect(); }

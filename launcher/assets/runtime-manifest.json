@@ -1,0 +1,86 @@
+{
+  "version": "1.1.0",
+  "engine_commit": "d454a204ef2b63af357744809c05af897611a72e",
+  "soc": "SM8650",
+  "hexagon": "v75",
+  "files": [
+    {
+      "path": "bin/llama-server-bolt",
+      "bytes": 11488784,
+      "sha256": "d75f9ac343483e9aa93a94e0a6cb4c91b5e7c2a5ca9cde9772d191cc4abcd085",
+      "executable": true
+    },
+    {
+      "path": "bin/libggml-htp-v75.so",
+      "bytes": 821824,
+      "sha256": "618f8df7971e9cdd6ab6a3289ab04536c6e0100eb1479462c50c02c4fde24fb2",
+      "executable": true
+    },
+    {
+      "path": "bin/chat-bridge-bolt",
+      "bytes": 14119911,
+      "sha256": "f4437c2f94f3f34107b1c73902ed77803f9e1a9e9449d46d9caa26c7aebb573b",
+      "executable": true
+    },
+    {
+      "path": "engine-env.sh",
+      "bytes": 504,
+      "sha256": "77f0a5e6d42444ac516f765b6fb1134ca7ec30e87b8abda69a631f8f1e626d0d",
+      "executable": true
+    },
+    {
+      "path": "start-bolt.sh",
+      "bytes": 2232,
+      "sha256": "04a513973cd7317c4eea592e4b2848b2280aefa88daab012dc311830031384f9",
+      "executable": true
+    },
+    {
+      "path": "stop-bolt.sh",
+      "bytes": 690,
+      "sha256": "8c74e8d90c04ea63abdcd181d423c4a51c6d1227d9a9796a3eee2553b8a629ba",
+      "executable": true
+    },
+    {
+      "path": "stop-chat.sh",
+      "bytes": 877,
+      "sha256": "2db648ecd334e06c547e8112fa1a4c99d9bc5767de5ada3042fe70b2fc8283a9",
+      "executable": true
+    },
+    {
+      "path": "start-chat.sh",
+      "bytes": 1905,
+      "sha256": "72969da70ad997b54d53e2d89ab259e2b254befc076e165c15ba8aacd91fea16",
+      "executable": true
+    },
+    {
+      "path": "start-atelier.sh",
+      "bytes": 93,
+      "sha256": "dd67878a78ba7da850d975cb9d376272108ba7848da2334550d912ce5a319fa1",
+      "executable": true
+    },
+    {
+      "path": "start-atelier-profile.sh",
+      "bytes": 3019,
+      "sha256": "5faa2ee85cd9b6c047cdb557261b77f4458c0646ed761374cbce6e1ad95c1c9d",
+      "executable": true
+    },
+    {
+      "path": "start-from-home.sh",
+      "bytes": 306,
+      "sha256": "438f5e9297ace29fb5dec8e1ce1eaab5880c3c11082e02a7fce4da00205ac927",
+      "executable": true
+    },
+    {
+      "path": "boot-atelier.sh",
+      "bytes": 943,
+      "sha256": "e91dbaacddbcaa0984e309dee17e375f23e87cc5475fb75b169fbd79623679be",
+      "executable": true
+    },
+    {
+      "path": "restart-after-setup.sh",
+      "bytes": 846,
+      "sha256": "5c599c96cee8a4745c2ccd1305964df7e20765110f1d29d5503b7d9c4a424eeb",
+      "executable": true
+    }
+  ]
+}

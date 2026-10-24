@@ -4,6 +4,14 @@
 
 WindowsのPowerShell、JDK17、Android SDK35・Build Tools35.0.0が必要です。
 
+先に会話ブリッジとNPUエンジンを用意し、同梱ランタイムを作ります。`--server`にはPLE対応の`llama-server-bolt`、`--dsp`には同じビルド由来の`libggml-htp-v75.so`を指定します。
+
+```powershell
+py -3 scripts/package-setup.py --server path/to/llama-server-bolt --dsp path/to/libggml-htp-v75.so --bridge path/to/chat-bridge --engine path/to/engine
+```
+
+`launcher/assets/runtime.tar`はGit対象外です。ファイル別SHA256とビルド基準は`launcher/assets/runtime-manifest.json`に残します。署名済み配布版の更新時は下記へ`-KeyStore`で同じ署名鍵を渡します。
+
 ```powershell
 pwsh -NoProfile -File scripts/build-launcher.ps1 -JdkRoot 'C:/path/to/jdk17'
 ```

@@ -42,8 +42,11 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this); title.setText("Gemma"); title.setTextSize(32); title.setTextColor(0xffc9ef9b); layout.addView(title);
         status = new TextView(this); status.setTextColor(0xffeeeeee); status.setTextSize(17); status.setGravity(Gravity.CENTER); status.setPadding(0,32,0,32); layout.addView(status);
         Button retry = new Button(this); retry.setText("もう一度接続"); retry.setOnClickListener(v -> begin()); layout.addView(retry);
+        Button setup = new Button(this); setup.setText("初回セットアップ"); setup.setOnClickListener(v -> startActivity(new Intent(this,SetupActivity.class))); layout.addView(setup);
         setContentView(layout);
         if (getIntent().getBooleanExtra("pin_to_home", false)) { pinToHome(); return; }
+        try { getPackageManager().getPackageInfo("com.termux",0); }
+        catch (PackageManager.NameNotFoundException missing) { startActivity(new Intent(this,SetupActivity.class)); return; }
         if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PackageManager.PERMISSION_GRANTED)
             requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"}, 1);
         else begin();
@@ -58,7 +61,10 @@ public class MainActivity extends Activity {
 
     @Override public void onNewIntent(Intent intent) {
         super.onNewIntent(intent); setIntent(intent);
-        if (intent.getBooleanExtra("pin_to_home", false)) pinToHome(); else begin();
+        if (intent.getBooleanExtra("pin_to_home", false)) pinToHome();
+        else if (checkSelfPermission("com.termux.permission.RUN_COMMAND") != PackageManager.PERMISSION_GRANTED)
+            requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"}, 1);
+        else begin();
     }
 
     private void pinToHome() {
@@ -80,6 +86,7 @@ public class MainActivity extends Activity {
 
     private void openBrowser() {
         opened=true;
+        if (getSharedPreferences("setup",0).getBoolean("installed",false)) stopService(new Intent(this,SetupService.class));
         Intent page = new Intent(Intent.ACTION_VIEW,Uri.parse("http://127.0.0.1:8085/"));
         page.setPackage("com.android.chrome"); page.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try { startActivity(page); finish(); }

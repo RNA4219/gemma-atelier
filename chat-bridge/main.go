@@ -332,7 +332,7 @@ func (b *bridge) handler() http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		_ = json.NewEncoder(w).Encode(map[string]any{"gemma": healthy(b.llm, "/health"), "images": healthy(b.nightmare, "/info"), "models": models})
+		_ = json.NewEncoder(w).Encode(map[string]any{"gemma": healthy(b.llm, "/health"), "images": b.token != "" && healthy(b.nightmare, "/info"), "models": models})
 	})
 	mux.HandleFunc("/images/", func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/images/")
@@ -372,6 +372,7 @@ func main() {
 	tokenFile := flag.String("token-file", "nightmare.token", "private token file")
 	llm := flag.String("llm", "http://127.0.0.1:8084", "Gemma local API")
 	nightmare := flag.String("nightmare", "http://127.0.0.1:8820", "Nightmare local API")
+	allowMissingImages := flag.Bool("allow-missing-images", false, "allow chat before the image engine is configured")
 	flag.Parse()
 	inference, err := inferenceFromEnv()
 	if err != nil {
@@ -382,10 +383,10 @@ func main() {
 		log.Fatal("listen address must be loopback")
 	}
 	token, err := os.ReadFile(*tokenFile)
-	if err != nil {
+	if err != nil && !(*allowMissingImages && os.IsNotExist(err)) {
 		log.Fatal("private Nightmare token file unavailable")
 	}
-	if strings.TrimSpace(string(token)) == "" {
+	if strings.TrimSpace(string(token)) == "" && !*allowMissingImages {
 		log.Fatal("empty Nightmare token")
 	}
 	if err = os.MkdirAll(filepath.Join(*data, "images"), 0700); err != nil {

@@ -4,12 +4,15 @@ nubia上でBoltとの会話と画像生成を使うためのアプリです。�
 
 ## APKを入れる
 
-**このReleaseは、Termux・Bolt・Nightmareをセットアップ済みの端末向けの起動APKです。APKだけで新しい端末へモデルを導入するものではありません。**
+**v1.1.0は初回セットアップ付きです。対象はSnapdragon 8 Gen 3（SM8650）・RAM16GB・Android12以上。NPUで起動できない端末では停止し、CPU推論へ切り替えません。**
 
 1. AndroidのChromeで[最新Release](https://github.com/RNA4219/gemma-atelier/releases/latest)を開きます。非公開の場合はアクセス可能なGitHubアカウントでログインしてください。
-2. `Gemma-Atelier-v1.0.0.apk`をダウンロードして開き、インストールまたは更新を選びます。
-3. Androidから求められた場合だけ、Chromeからのアプリインストールと、GemmaからのTermux実行を許可します。
-4. ホーム画面またはアプリ一覧の「Gemma」を押します。準備ができると、既存のChromeの会話画面が開きます。
+2. `Gemma-Atelier-v1.1.0.apk`をダウンロードして開き、インストールまたは更新を選びます。
+3. Gemmaの「初回セットアップ」でTermuxを導入して一度開きます。Androidのインストール確認・権限要求を許可してください。
+4. Gemmaに戻り「セットアップをコピーしてTermuxを開く」を押し、Termuxで長押し→貼り付け→Enter。以後、モデル取得・PLE分離・NPU確認を自動で行います。
+5. 完了後にGemmaへ戻り「会話を開く」。ホームにGemmaを置けば、次回からワンタップで起動できます。
+
+初回のモデル取得は約6.2GB、空き容量16GiB以上とWi-Fiが必要です。画像生成はNightmareと画像モデルの別設定が必要です。現在のIllustrious・LoRA等を別端末へ自動移行する機能は含みません。[導入手順](docs/SETUP.md)を参照してください。
 
 今回セットアップしたnubiaには、このAPKを既にインストールしています。同じ署名による上書き更新に対応します。履歴はChromeの保存領域を使うため、Chromeのデータは消去しないでください。
 
@@ -19,12 +22,13 @@ nubia上でBoltとの会話と画像生成を使うためのアプリです。�
 
 | フォルダ | 内容 |
 |---|---|
-| `launcher/` | Androidの起動アプリ。準備待ち、Termuxへの接続維持、Chromeへの遷移 |
+| `launcher/` | Androidの起動・初回導入アプリ。公式APK取得、Termuxへの受け渡し、接続維持 |
+| `setup/` | モデルの再開可能な取得・SHA256照合・PLE分離・NPU確認 |
 | `chat-bridge/` | 会話・画像ツールAPI、キャラクター設定、タグ変換、プリセット、履歴、ノード式ワークフローUI |
 | `scripts/` | APKとNPUエンジンのビルド、起動、PLEの物理分離 |
 | `engine-patches/` | llama.cppの基準commitと、BoltのPLE別ファイル読み込み・整合性検査の差分 |
 
-モデル・会話履歴・生成画像・認証トークン・署名鍵・Qualcomm SDKは含めていません。画像エンジン本体も別途必要です。ControlNetのUIと接続コードはありますが、実機NPU生成は未完成です。
+モデル・会話履歴・生成画像・認証トークン・署名鍵・Qualcomm SDKは含めていません。Release APKには確認済みARM64実行ファイルとHexagon v75プログラムを同梱し、モデルとTermuxは公式配布元から取得します。ControlNetのUIと接続コードはありますが、実機NPU生成は未完成です。
 
 ## 現在の確認範囲
 

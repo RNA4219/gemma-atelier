@@ -1,6 +1,7 @@
 param(
     [string]$JdkRoot = $env:JAVA_HOME,
-    [string]$AndroidSdk = "$env:LOCALAPPDATA/Android/Sdk"
+    [string]$AndroidSdk = "$env:LOCALAPPDATA/Android/Sdk",
+    [string]$KeyStore = ''
 )
 $ErrorActionPreference='Stop'
 if (-not $JdkRoot -or -not (Test-Path -LiteralPath "$JdkRoot/bin/javac.exe")) { throw 'JDK17のパスを-JdkRootまたはJAVA_HOMEで指定してください。' }
@@ -19,7 +20,8 @@ function Run([string]$Executable,[string[]]$Arguments) {
     & $Executable @Arguments
     if($LASTEXITCODE -ne 0){throw "Build failed: $Executable"}
 }
-Run (Join-Path $bt 'aapt.exe') @('package','-f','-m','-M',(Join-Path $project 'AndroidManifest.xml'),'-S',(Join-Path $project 'res'),'-I',$android,'-F',(Join-Path $build 'unsigned.apk'),'-J',(Join-Path $build 'gen'))
+if(!(Test-Path -LiteralPath (Join-Path $project 'assets/runtime.tar'))) { throw '先にpackage-setup.pyで同梱ランタイムを作成してください。' }
+Run (Join-Path $bt 'aapt.exe') @('package','-f','-m','-M',(Join-Path $project 'AndroidManifest.xml'),'-S',(Join-Path $project 'res'),'-A',(Join-Path $project 'assets'),'-0','tar','-I',$android,'-F',(Join-Path $build 'unsigned.apk'),'-J',(Join-Path $build 'gen'))
 $sources=@(Get-ChildItem (Join-Path $project 'src') -Recurse -Filter '*.java' | ForEach-Object FullName)
 Run (Join-Path $jdk 'bin/javac.exe') (@('-encoding','UTF-8','-source','8','-target','8','-classpath',$android,'-d',(Join-Path $build 'classes'))+$sources)
 Run (Join-Path $jdk 'bin/jar.exe') @('cf',(Join-Path $build 'classes.jar'),'-C',(Join-Path $build 'classes'),'.')
@@ -28,6 +30,7 @@ Push-Location (Join-Path $build 'dex')
 try { Run (Join-Path $bt 'aapt.exe') @('add',(Join-Path $build 'unsigned.apk'),'classes.dex') } finally { Pop-Location }
 Run (Join-Path $bt 'zipalign.exe') @('-f','4',(Join-Path $build 'unsigned.apk'),(Join-Path $build 'aligned.apk'))
 $key=Join-Path $private 'gemma-local.jks'
+if($KeyStore) { $key=$KeyStore; if(!(Test-Path -LiteralPath $key)) { throw '指定した署名鍵がありません。' } }
 if(!(Test-Path -LiteralPath $key)) {
     Run (Join-Path $jdk 'bin/keytool.exe') @('-genkeypair','-keystore',$key,'-storepass','android','-keypass','android','-alias','gemma','-dname','CN=Gemma Local','-keyalg','RSA','-keysize','2048','-validity','10000')
 }

@@ -8,6 +8,7 @@ fi
 ATELIER_LLM_PROFILE=bolt
 ATELIER_LLM_THINKING=off
 ATELIER_LLM_FALLBACK=none
+ATELIER_IMAGES_OPTIONAL=0
 if [ -f "$ROOT/atelier-llm.env" ]; then . "$ROOT/atelier-llm.env"; fi
 case "$ATELIER_LLM_PROFILE" in gemma|bolt) ;; *) echo 'Invalid LLM profile'; exit 1;; esac
 case "$ATELIER_LLM_THINKING" in on|off) ;; *) echo 'Invalid thinking setting'; exit 1;; esac
@@ -20,7 +21,8 @@ if [ "$ATELIER_LLM_PROFILE" = bolt ]; then
             echo 'Bolt failed; configured Gemma rollback is active.'
             ATELIER_LLM_PROFILE=gemma
         else
-            echo 'PLE/Bolt load failed; the UI will report the connection error. Choose gemma with select-llm.sh to roll back.'
+            echo 'PLE/Bolt NPU load failed. Read bolt-server.log.'
+            exit 1
         fi
     fi
 fi
@@ -44,16 +46,21 @@ else
 fi
 export ATELIER_LLM_PROFILE ATELIER_LLM_CONTEXT ATELIER_LLM_THINKING
 # Preserve the image engine used by the deployed application before this change.
-if ! curl -fsS --max-time 2 http://127.0.0.1:8820/info >/dev/null 2>&1; then
+if [ -s "$ROOT/nightmare.token" ] && ! curl -fsS --max-time 2 http://127.0.0.1:8820/info >/dev/null 2>&1; then
     /system/bin/am start-foreground-service --user 0 -n com.abrah.nightmare/.OpService --es op api --es arg on || true
     for TRY in $(seq 1 15); do
         if curl -fsS --max-time 2 http://127.0.0.1:8820/info >/dev/null 2>&1; then break; fi
         sleep 1
     done
 fi
-if ! curl -fsS --max-time 2 http://127.0.0.1:8820/info >/dev/null 2>&1; then echo 'Nightmare local API unavailable'; exit 1; fi
+IMAGE_FLAG=
+if [ "$ATELIER_IMAGES_OPTIONAL" = 1 ]; then
+    IMAGE_FLAG=-allow-missing-images
+elif ! curl -fsS --max-time 2 http://127.0.0.1:8820/info >/dev/null 2>&1; then
+    echo 'Nightmare local API unavailable'; exit 1
+fi
 if ! curl -fsS --max-time 2 http://127.0.0.1:8085/api/status >/dev/null 2>&1; then
-    nohup "$BRIDGE" -llm "$LLM" -data "$ROOT/chat-data" -nightmare http://127.0.0.1:8820 -token-file "$ROOT/nightmare.token" > "$ROOT/atelier.log" 2>&1 < /dev/null &
+    nohup "$BRIDGE" $IMAGE_FLAG -llm "$LLM" -data "$ROOT/chat-data" -nightmare http://127.0.0.1:8820 -token-file "$ROOT/nightmare.token" > "$ROOT/atelier.log" 2>&1 < /dev/null &
     printf '%s\n' "$!" > "$ROOT/atelier.pid"
     printf '%s\n' "$ATELIER_LLM_PROFILE" > "$ROOT/atelier-llm-active"
     sleep 1
