@@ -8,11 +8,11 @@ function persist(){try{localStorage.setItem(historyKey,JSON.stringify(history.sl
 function setBusy(value){busy=value;imageSettingsUI.setBusy(value);$('send').disabled=value||!connected;$('convert-tags').disabled=value||!connected;$('generate-tags').disabled=value||!imageConnected||!$('tags').value.trim();$('tags').disabled=value;$('reset').disabled=value;$('model').disabled=value;document.querySelectorAll('.suggestion').forEach(b=>b.disabled=value);window.dispatchEvent(new CustomEvent('atelier-busy',{detail:value}));}
 function add(m){
  const article=document.createElement('article');article.className=m.role;
- const label=document.createElement('strong');label.textContent=m.role==='user'?'あなた':'GEMMA';article.append(label);
+ const label=document.createElement('strong');label.textContent=m.role==='user'?'あなた':'LLM Atelier';article.append(label);
  const p=document.createElement('p');p.textContent=m.content;article.append(p);
  if(typeof m.image==='string'&&/^\/images\/[a-f0-9]{24}\.png$/.test(m.image)){
   const image=document.createElement('img');image.src=m.image;image.alt=m.prompt||'生成した画像';image.loading='lazy';article.append(image);
-  const save=document.createElement('a');save.href=m.image;save.download='gemma-image.png';save.className='save';save.textContent='画像を保存';article.append(save);
+  const save=document.createElement('a');save.href=m.image;save.download='llm-atelier-image.png';save.className='save';save.textContent='画像を保存';article.append(save);
  }
  if(m.prompt){const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent=m.prompt_source==='tags'?'使用したタグ':'変換したプロンプト';const text=document.createElement('p');text.textContent=m.prompt;details.append(summary,text);article.append(details);}
  if(m.image&&typeof m.negative==='string'){const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent='ネガティブ・CFG';const text=document.createElement('p');text.textContent=(m.negative||'指定なし')+'\nCFG '+m.cfg;details.append(summary,text);article.append(details);}
@@ -23,7 +23,7 @@ history.forEach(add);
 $('model').addEventListener('change',()=>localStorage.setItem('gemma-atelier-model',$('model').value));
 $('reset').addEventListener('click',()=>{history=[];persist();$('chat').replaceChildren();$('welcome').hidden=false;$('error').textContent='';$('prompt').value='';$('tags').value='';tagSource='';$('tag-panel').hidden=true;$('state').textContent='新しい会話 · 端末内で実行';setBusy(false);});
 document.querySelectorAll('[data-prompt]').forEach(b=>b.addEventListener('click',()=>{$('prompt').value=b.dataset.prompt;$('prompt').focus();}));
-async function connect(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();connected=s.gemma;imageConnected=s.images;$('state').textContent=s.gemma?(s.images?'会話・画像生成に接続済み · 端末内で実行':'会話に接続済み · 画像エンジンは未接続'):'Gemmaを起動してください';if(!s.gemma)$('error').textContent='Termuxで ~/gemma-e4b/start-atelier.sh を実行してください。';}catch{connected=false;imageConnected=false;$('state').textContent='サーバーに接続できません';$('error').textContent='Termuxで ~/gemma-e4b/start-atelier.sh を実行してから再読み込みしてください。';}setBusy(false);}
+async function connect(){try{const r=await fetch('/api/status',{cache:'no-store'});if(!r.ok)throw Error();const s=await r.json();connected=s.gemma;imageConnected=s.images;$('state').textContent=s.gemma?(s.images?'会話・画像生成に接続済み · 端末内で実行':'会話に接続済み · 画像エンジンは未接続'):'LLM Atelierを起動してください';if(!s.gemma)$('error').textContent='Termuxで ~/gemma-e4b/start-atelier.sh を実行してください。';}catch{connected=false;imageConnected=false;$('state').textContent='サーバーに接続できません';$('error').textContent='Termuxで ~/gemma-e4b/start-atelier.sh を実行してから再読み込みしてください。';}setBusy(false);}
 $('form').addEventListener('submit',async event=>{
  event.preventDefault();const text=$('prompt').value.trim();if(!text||busy||!connected)return;
  const messages=[...history.slice(-29).map(m=>({role:m.role,content:m.content,prompt:m.prompt||'',image:m.image||''})),{role:'user',content:text}];
@@ -53,7 +53,7 @@ $('tags').addEventListener('input',()=>{setBusy(busy);$('tag-note').textContent=
 $('convert-tags').addEventListener('click',async()=>{
  const text=$('prompt').value.trim();if(!text||busy||!connected)return;
  if([...text].length>600){$('error').textContent='タグへの変換は600文字以内で入力してください。';return;}
- setBusy(true);$('error').textContent='';$('state').textContent='Gemmaが生成用タグへ変換しています…';
+ setBusy(true);$('error').textContent='';$('state').textContent='LLM Atelierが生成用タグへ変換しています…';
  try{
   const response=await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Client':'1'},body:JSON.stringify({text})});
   if(!response.ok)throw Error(await response.text());const result=await response.json();

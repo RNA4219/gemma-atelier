@@ -36,10 +36,11 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        ShortcutBranding.refresh(this);
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL); layout.setGravity(Gravity.CENTER); layout.setPadding(32,48,32,48);
         layout.setBackgroundColor(0xff14211e);
-        TextView title = new TextView(this); title.setText("Gemma"); title.setTextSize(32); title.setTextColor(0xffc9ef9b); layout.addView(title);
+        TextView title = new TextView(this); title.setText(ShortcutBranding.NAME); title.setTextSize(32); title.setTextColor(0xffc9ef9b); layout.addView(title);
         status = new TextView(this); status.setTextColor(0xffeeeeee); status.setTextSize(17); status.setGravity(Gravity.CENTER); status.setPadding(0,32,0,32); layout.addView(status);
         Button retry = new Button(this); retry.setText("もう一度接続"); retry.setOnClickListener(v -> begin()); layout.addView(retry);
         Button setup = new Button(this); setup.setText("モデル・ダウンロード"); setup.setOnClickListener(v -> startActivity(new Intent(this,SetupActivity.class))); layout.addView(setup);
@@ -54,6 +55,9 @@ public class MainActivity extends Activity {
     }
 
     private void begin() {
+        if(getSharedPreferences("setup",0).getBoolean("installed",false)&&!SetupService.runtimeCurrent(this)){
+            startActivity(new Intent(this,SetupActivity.class).putExtra("update_and_open",true));finish();return;
+        }
         opened=false; deadline=SystemClock.elapsedRealtime()+180000;
         main.removeCallbacks(probe);
         try { startForegroundService(new Intent(this, KeepService.class)); main.post(probe); }
@@ -71,13 +75,10 @@ public class MainActivity extends Activity {
     private void pinToHome() {
         ShortcutManager shortcuts = getSystemService(ShortcutManager.class);
         if (shortcuts.isRequestPinShortcutSupported()) {
-            Intent launch = new Intent(this, MainActivity.class).setAction(Intent.ACTION_MAIN);
-            ShortcutInfo shortcut = new ShortcutInfo.Builder(this, "bolt-home")
-                .setShortLabel("Gemma").setLongLabel("Gemma · Bolt")
-                .setIcon(Icon.createWithResource(this, getApplicationInfo().icon)).setIntent(launch).build();
+            ShortcutInfo shortcut = ShortcutBranding.shortcut(this);
             shortcuts.requestPinShortcut(shortcut, null);
-            status.setText("ホーム画面への追加を確定してください。次回からGemmaを押すだけでBoltを起動できます。");
-        } else status.setText("アプリ一覧のGemmaをホーム画面へ追加してください。");
+            status.setText("ホーム画面への追加を確定してください。次回からLLM Atelierを押すだけでBoltを起動できます。");
+        } else status.setText("アプリ一覧のLLM Atelierをホーム画面へ追加してください。");
     }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results) {
         super.onRequestPermissionsResult(code,permissions,results);

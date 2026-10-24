@@ -29,10 +29,10 @@ public class SetupService extends Service {
     @Override public void onCreate() {
         super.onCreate();
         NotificationManager nm=getSystemService(NotificationManager.class);
-        nm.createNotificationChannel(new NotificationChannel("setup","Atelierのダウンロード",NotificationManager.IMPORTANCE_LOW));
+        nm.createNotificationChannel(new NotificationChannel("setup","LLM Atelierのダウンロード",NotificationManager.IMPORTANCE_LOW));
         PendingIntent open=PendingIntent.getActivity(this,2,new Intent(this,SetupActivity.class),PendingIntent.FLAG_IMMUTABLE);
         Notification n=new Notification.Builder(this,"setup").setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Gemmaの初回セットアップ").setContentText("端末内のNPU環境を準備します").setContentIntent(open).setOngoing(true).build();
+            .setContentTitle("LLM Atelierのセットアップ").setContentText("端末内のNPU環境を準備します").setContentIntent(open).setOngoing(true).build();
         if(Build.VERSION.SDK_INT>=34)startForeground(2,n,ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);else startForeground(2,n);
         for(String job:new String[]{"termux","nightmare"})if(DownloadState.job(this,job).optString("state").equals("running"))
             DownloadState.put(this,job,"state","paused","message","前回の続きから再開できます。","speed",0,"eta",-1);
@@ -78,7 +78,7 @@ public class SetupService extends Service {
                 if(progress.optBoolean("command_ready"))DownloadState.prefs(this).edit().putBoolean("command_ready",true).apply();
                 if(progress.optBoolean("ack_reset")&&DownloadState.prefs(this).getString("command_bolt","").equals("reset"))
                     DownloadState.prefs(this).edit().putString("command_bolt","run").apply();
-                if(next.equals("complete"))getSharedPreferences("setup",0).edit().putBoolean("installed",true).apply();
+                if(next.equals("complete"))getSharedPreferences("setup",0).edit().putBoolean("installed",true).putString("runtime_version",progress.optString("version")).apply();
                 reply(out,200,"application/json","{}".getBytes("UTF-8"));return;
             }
             if(!request[0].equals("GET")){reply(out,405,"text/plain",new byte[0]);return;}
@@ -110,10 +110,10 @@ public class SetupService extends Service {
         return START_NOT_STICKY;
     }
     private void updateNotification(){
-        String title="Atelier ・ ダウンロード管理",text="モデルとインストールの準備ができます";JSONObject current=null;
+        String title="LLM Atelier ・ ダウンロード管理",text="モデルとインストールの準備ができます";JSONObject current=null;
         for(String id:new String[]{"bolt","termux","nightmare"}){
             JSONObject job=DownloadState.job(this,id);
-            if(job.optString("state").equals("running")){current=job;title="Atelier ・ "+(id.equals("bolt")?"Bolt":id.equals("termux")?"Termux":"画像エンジン");text=job.optString("message");break;}
+            if(job.optString("state").equals("running")){current=job;title="LLM Atelier ・ "+(id.equals("bolt")?"Bolt":id.equals("termux")?"Termux":"画像エンジン");text=job.optString("message");break;}
         }
         Notification.Builder b=new Notification.Builder(this,"setup").setSmallIcon(android.R.drawable.stat_sys_download).setContentTitle(title).setContentText(text)
             .setOnlyAlertOnce(true).setOngoing(current!=null).setContentIntent(PendingIntent.getActivity(this,2,new Intent(this,SetupActivity.class),PendingIntent.FLAG_IMMUTABLE));
@@ -121,5 +121,9 @@ public class SetupService extends Service {
         getSystemService(NotificationManager.class).notify(2,b.build());
     }
     @Override public IBinder onBind(Intent i){return null;}
+    static boolean runtimeCurrent(Context context){
+        try{return context.getPackageManager().getPackageInfo(context.getPackageName(),0).versionName.equals(DownloadState.prefs(context).getString("runtime_version",""));}
+        catch(android.content.pm.PackageManager.NameNotFoundException e){return false;}
+    }
     @Override public void onDestroy(){base="";imageToken="";handler.removeCallbacksAndMessages(null);if(bound)unbindService(connection);try{if(server!=null)server.close();}catch(IOException ignored){}io.shutdownNow();downloads.shutdownNow();super.onDestroy();}
 }

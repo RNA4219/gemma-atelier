@@ -147,8 +147,8 @@ def main():
         subprocess.run(['sh', str(root / entrypoint)], check=True, timeout=90)
         status = json.load(urllib.request.urlopen('http://127.0.0.1:8085/api/status', timeout=8))
         if not status.get('gemma'): raise RuntimeError('会話APIの接続を確認できません')
-        (root / 'setup-complete.json').write_text(json.dumps({'version': '1.2.0', 'npu': 'HTP0-v75', 'model': 'Bolt-E4B', 'images': status.get('images',False)}))
-        report('準備できました。さっそく話してみましょう', 'complete', phase='ready', npu=True, images=status.get('images',False), bytes=MODEL_BYTES, total=MODEL_BYTES, free=shutil.disk_usage(root).free)
+        (root / 'setup-complete.json').write_text(json.dumps({'version': '1.2.1', 'npu': 'HTP0-v75', 'model': 'Bolt-E4B', 'images': status.get('images',False)}))
+        report('準備できました。さっそく話してみましょう', 'complete', phase='ready', version=contents['version'], npu=True, images=status.get('images',False), bytes=MODEL_BYTES, total=MODEL_BYTES, free=shutil.disk_usage(root).free)
     except Paused as error:
         report(str(error), 'paused', phase='download', speed=0, eta=-1)
     except Exception as error:

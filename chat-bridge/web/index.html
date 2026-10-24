@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="ja">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#14211e"><title>Gemma Atelier</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/workflows.css"><link rel="manifest" href="/manifest.webmanifest"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#14211e"><title>LLM Atelier</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/workflows.css"><link rel="manifest" href="/manifest.webmanifest"></head>
 <body><main>
-<header><div><span class="eyebrow">ON YOUR PHONE</span><h1>Gemma Atelier<span>話す。描く。</span></h1></div><button id="reset" class="quiet" type="button">新しい会話</button></header>
+<header><div><span class="eyebrow">ON YOUR PHONE</span><h1>LLM Atelier<span>話す。描く。</span></h1></div><button id="reset" class="quiet" type="button">新しい会話</button></header>
 <nav class="view-tabs" aria-label="使い方"><button id="view-chat" class="active" type="button" aria-pressed="true">会話</button><button id="view-workflow" type="button" aria-pressed="false">ワークフロー</button></nav>
 <p class="footnote"><a href="intent://models#Intent;scheme=gemma-atelier;package=local.gemma.launcher;end">モデル・ダウンロード ↗</a></p>
 <div id="chat-view">
@@ -17,7 +17,7 @@
 </details>
 <p id="state" role="status">端末内のエンジンへ接続中…</p>
 <section id="chat" aria-label="会話" aria-live="polite"></section>
-<section id="welcome"><div class="orb">✳</div><h2>思い浮かんだことから。</h2><p>会話の途中で「描いて」と頼むと、<br>Gemmaが言葉を画像にします。</p><button class="suggestion" data-prompt="雪の森にいる赤いキツネを、水彩風のイラストで描いて。">雪の森のキツネを描いて ↗</button></section>
+<section id="welcome"><div class="orb">✳</div><h2>思い浮かんだことから。</h2><p>会話の途中で「描いて」と頼むと、<br>LLM Atelierが言葉を画像にします。</p><button class="suggestion" data-prompt="雪の森にいる赤いキツネを、水彩風のイラストで描いて。">雪の森のキツネを描いて ↗</button></section>
 <form id="form"><label class="sr-only" for="prompt">メッセージ</label><textarea id="prompt" rows="2" placeholder="話しかける、または「…を描いて」" required maxlength="4000"></textarea><div class="compose-bottom"><span>この端末内で生成</span><div class="compose-actions"><button id="convert-tags" class="quiet" type="button" disabled>タグに変換</button><button id="send" type="submit" disabled>送信 ↑</button></div></div></form>
 <section id="tag-panel" class="tag-panel" aria-labelledby="tag-heading" hidden><h2 id="tag-heading">生成するタグ</h2><p id="tag-source" class="tag-source"></p><label for="tags">追加・削除して調整できます</label><textarea id="tags" rows="4" maxlength="2000" spellcheck="false"></textarea><p id="tag-note" class="tag-note"></p><button id="generate-tags" type="button">このタグで生成</button></section>
 <p id="error" role="alert"></p><p class="footnote">画像の変更も、会話から新しく描き直します。</p>
@@ -32,7 +32,7 @@
 <section id="wf-inspector" class="wf-inspector" aria-label="選択したノードの設定"></section>
 <div class="wf-run-bar"><button id="wf-run" type="button" disabled>このフローを実行</button><button id="wf-stop" class="quiet" type="button" disabled>中止</button><button id="wf-from-chat" class="quiet" type="button">会話・タグから取り込む</button></div>
 <p id="wf-state" role="status">画像エンジンを確認しています…</p><p id="wf-control-status" class="wf-note" role="status"></p><p id="wf-error" role="alert"></p>
-<details class="wf-library"><summary>保存・読込</summary><label for="wf-name">フローの名前</label><div class="wf-row"><input id="wf-name" maxlength="40" placeholder="フローの名前"><button id="wf-save" class="quiet" type="button">保存</button></div><label for="wf-saved">保存したフロー</label><select id="wf-saved"></select><div class="wf-row"><button id="wf-load" class="quiet" type="button">読み込む</button><button id="wf-delete" class="quiet" type="button">削除</button><button id="wf-export" class="quiet" type="button">JSONを書き出す</button><label class="wf-file">JSONを読み込む<input id="wf-import" type="file" accept="application/json,.json"></label></div><p class="wf-hint">編集内容と保存フローはこのブラウザに保存。JSONはGemma Atelier用です。ComfyUIのJSON・カスタムノードには対応していません。</p></details>
+<details class="wf-library"><summary>保存・読込</summary><label for="wf-name">フローの名前</label><div class="wf-row"><input id="wf-name" maxlength="40" placeholder="フローの名前"><button id="wf-save" class="quiet" type="button">保存</button></div><label for="wf-saved">保存したフロー</label><select id="wf-saved"></select><div class="wf-row"><button id="wf-load" class="quiet" type="button">読み込む</button><button id="wf-delete" class="quiet" type="button">削除</button><button id="wf-export" class="quiet" type="button">JSONを書き出す</button><label class="wf-file">JSONを読み込む<input id="wf-import" type="file" accept="application/json,.json"></label></div><p class="wf-hint">編集内容と保存フローはこのブラウザに保存。JSONはLLM Atelier用です。ComfyUIのJSON・カスタムノードには対応していません。</p></details>
 <p id="wf-capabilities" class="wf-hint"></p>
 <details class="wf-library"><summary>手元から取り込んだLoRA・VAEと対応状況</summary><div id="wf-assets-list"></div></details>
 <section id="wf-results" aria-label="ワークフローの生成結果" aria-live="polite"></section>

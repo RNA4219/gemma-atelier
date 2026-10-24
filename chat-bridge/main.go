@@ -120,7 +120,7 @@ func (b *bridge) llmJSON(ctx context.Context, path string, body, out any) error 
 	return json.NewDecoder(io.LimitReader(r.Body, 2<<20)).Decode(out)
 }
 func systemPrompt(m model) string {
-	return "You are Gemma, a friendly conversational assistant. Reply naturally in Japanese. For requests to draw, create or change an image, ALWAYS call generate_image. For other conversation, answer without calling tools. Do not claim an image was created before the tool succeeds. Use recent context to resolve references like 'that' and reconstruct the entire scene for revisions. The tool creates a new text-to-image picture, not a pixel edit. Preserve the user's specifics. Do not add people or styles the user did not ask for. Keep the English prompt under 55 words. " + m.Style
+	return "You are LLM Atelier, a friendly conversational assistant. Reply naturally in Japanese. For requests to draw, create or change an image, ALWAYS call generate_image. For other conversation, answer without calling tools. Do not claim an image was created before the tool succeeds. Use recent context to resolve references like 'that' and reconstruct the entire scene for revisions. The tool creates a new text-to-image picture, not a pixel edit. Preserve the user's specifics. Do not add people or styles the user did not ask for. Keep the English prompt under 55 words. " + m.Style
 }
 func payload(msgs []message) map[string]any {
 	return map[string]any{"messages": msgs, "tools": tools, "tool_choice": "auto", "max_tokens": 384, "temperature": 0.5, "stream": false, "chat_template_kwargs": map[string]bool{"enable_thinking": false}}
@@ -248,14 +248,14 @@ func (b *bridge) chat(w http.ResponseWriter, r *http.Request) {
 	}
 	llmSeconds := time.Since(start).Seconds()
 	if len(answer.Choices) == 0 {
-		fail(errors.New("Gemmaの回答が空でした。"))
+		fail(errors.New("LLM Atelierの回答が空でした。"))
 		return
 	}
 	choice := answer.Choices[0]
 	a := choice.Message
 	if len(a.ToolCalls) == 0 {
 		if strings.TrimSpace(a.Content) == "" {
-			fail(errors.New("Gemmaの回答が空でした。"))
+			fail(errors.New("LLM Atelierの回答が空でした。"))
 			return
 		}
 		e.send("done", map[string]any{"text": a.Content, "seconds": llmSeconds, "trimmed": trimmed, "truncated": choice.Finish == "length"})
@@ -370,7 +370,7 @@ func main() {
 	addr := flag.String("listen", "127.0.0.1:8085", "loopback address")
 	data := flag.String("data", "chat-data", "private storage")
 	tokenFile := flag.String("token-file", "nightmare.token", "private token file")
-	llm := flag.String("llm", "http://127.0.0.1:8084", "Gemma local API")
+	llm := flag.String("llm", "http://127.0.0.1:8084", "LLM local API")
 	nightmare := flag.String("nightmare", "http://127.0.0.1:8820", "Nightmare local API")
 	allowMissingImages := flag.Bool("allow-missing-images", false, "allow chat before the image engine is configured")
 	flag.Parse()
@@ -394,6 +394,6 @@ func main() {
 	}
 	b := &bridge{llm: *llm, nightmare: *nightmare, token: strings.TrimSpace(string(token)), data: *data, inference: inference, client: &http.Client{Timeout: 8 * time.Minute, Transport: &http.Transport{Proxy: nil}, CheckRedirect: func(req *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}}
 	server := &http.Server{Addr: *addr, Handler: b.handler(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 9 * time.Minute, IdleTimeout: 60 * time.Second}
-	log.Printf("Gemma + image chat ready at http://%s", *addr)
+	log.Printf("LLM Atelier chat ready at http://%s", *addr)
 	log.Fatal(server.ListenAndServe())
 }

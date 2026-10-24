@@ -24,10 +24,10 @@ public class KeepService extends Service {
     @Override public void onCreate() {
         super.onCreate();
         NotificationManager manager = getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(new NotificationChannel("running", "Gemmaの起動と接続", NotificationManager.IMPORTANCE_LOW));
+        manager.createNotificationChannel(new NotificationChannel("running", "LLM Atelierの起動と接続", NotificationManager.IMPORTANCE_LOW));
         PendingIntent open = PendingIntent.getActivity(this, 0, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         Notification notification = new Notification.Builder(this, "running").setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("Gemma · Bolt").setContentText("端末内の会話・画像生成へ接続しています")
+            .setContentTitle("LLM Atelier").setContentText("端末内の会話・画像生成へ接続しています")
             .setOngoing(true).setContentIntent(open).build();
         if (Build.VERSION.SDK_INT >= 34) startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
         else startForeground(1, notification);
@@ -71,7 +71,7 @@ public class KeepService extends Service {
             command.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/sh");
             command.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", new String[]{"/data/data/com.termux/files/home/gemma-e4b/start-from-home.sh"});
             command.putExtra("com.termux.RUN_COMMAND_BACKGROUND", true);
-            command.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "Gemma · Bolt起動");
+            command.putExtra("com.termux.RUN_COMMAND_COMMAND_LABEL", "LLM Atelier · Bolt起動");
             startService(command);
             status = "Boltを起動しています。しばらくお待ちください…";
         } catch (RuntimeException error) { status = "Termuxを起動できませんでした。権限設定を確認してください"; }

@@ -21,6 +21,12 @@ public class SetupActivity extends Activity {
     private volatile JSONObject health=new JSONObject();
     private String pendingPackage="",pendingAction="",pendingToken="";
     private boolean launching;
+    private final Runnable finishUpdate=new Runnable(){public void run(){
+        if(isDestroyed()||isFinishing())return;
+        if(SetupService.runtimeCurrent(SetupActivity.this)){
+            startActivity(new Intent(SetupActivity.this,MainActivity.class));finish();
+        }else main.postDelayed(this,1000);
+    }};
     private final Runnable probe=new Runnable(){public void run(){
         if(isDestroyed())return;
         worker.execute(()->{
@@ -41,7 +47,7 @@ public class SetupActivity extends Activity {
     }
     private void note(String text){new AlertDialog.Builder(this).setMessage(text).setPositiveButton("OK",null).show();}
     @Override public void onCreate(Bundle saved){
-        super.onCreate(saved);getWindow().setStatusBarColor(0xfff5f5f1);getWindow().setNavigationBarColor(0xfff5f5f1);
+        super.onCreate(saved);ShortcutBranding.refresh(this);getWindow().setStatusBarColor(0xfff5f5f1);getWindow().setNavigationBarColor(0xfff5f5f1);
         getWindow().getDecorView().setSystemUiVisibility(android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         android.widget.FrameLayout frame=new android.widget.FrameLayout(this);
         web=new WebView(this);web.setBackgroundColor(0xfff5f5f1);frame.addView(web,new android.widget.FrameLayout.LayoutParams(-1,-1));setContentView(frame);
@@ -59,7 +65,9 @@ public class SetupActivity extends Activity {
         if(supported())startForegroundService(new Intent(this,SetupService.class));
         if(Build.VERSION.SDK_INT>=33&&checkSelfPermission("android.permission.POST_NOTIFICATIONS")!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},2);
         main.post(probe);
-        if(DownloadState.job(this,"bolt").optString("state").equals("running")&&DownloadState.prefs(this).getBoolean("command_ready",false))main.postDelayed(this::bootstrap,900);
+        boolean updating=getIntent().getBooleanExtra("update_and_open",false)&&supported()&&DownloadState.prefs(this).getBoolean("installed",false);
+        if(updating){main.postDelayed(this::bootstrap,900);main.postDelayed(finishUpdate,1000);}
+        else if(DownloadState.job(this,"bolt").optString("state").equals("running")&&DownloadState.prefs(this).getBoolean("command_ready",false))main.postDelayed(this::bootstrap,900);
     }
     final class Bridge {
         @JavascriptInterface public String getState(){
@@ -114,7 +122,7 @@ public class SetupActivity extends Activity {
         if(DownloadState.prefs(this).getBoolean("command_ready",false)||DownloadState.prefs(this).getBoolean("installed",false)){
             try{runTermux(command);DownloadState.put(this,"bolt","state","running","message","保存済みのデータを確認して、続きから準備します");return;}catch(RuntimeException ignored){}
         }
-        getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("Atelierセットアップ",command));
+        getSystemService(ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("LLM Atelierセットアップ",command));
         new AlertDialog.Builder(this).setTitle("最初の1回だけ、貼り付けます").setMessage("Termuxの準備が終わったら、画面を長押し → Paste（貼り付け）→ Enter。\n\nモデルの取得とNPUの準備が自動で進みます。この画面に戻って進捗を確認できます。")
             .setPositiveButton("Termuxを開く",(d,w)->startActivity(getPackageManager().getLaunchIntentForPackage("com.termux"))).setNegativeButton("あとで",null).show();
     }

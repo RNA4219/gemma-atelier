@@ -34,7 +34,7 @@ if($KeyStore) { $key=$KeyStore; if(!(Test-Path -LiteralPath $key)) { throw 'æŒ‡å
 if(!(Test-Path -LiteralPath $key)) {
     Run (Join-Path $jdk 'bin/keytool.exe') @('-genkeypair','-keystore',$key,'-storepass','android','-keypass','android','-alias','gemma','-dname','CN=Gemma Local','-keyalg','RSA','-keysize','2048','-validity','10000')
 }
-$apk=Join-Path $build 'Gemma.apk'
+$apk=Join-Path $build 'LLM-Atelier.apk'
 Run (Join-Path $bt 'apksigner.bat') @('sign','--ks',$key,'--ks-key-alias','gemma','--ks-pass','pass:android','--out',$apk,(Join-Path $build 'aligned.apk'))
 Run (Join-Path $bt 'apksigner.bat') @('verify',$apk)
 $report=[ordered]@{apk=$apk;sha256=(Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLower();bytes=(Get-Item -LiteralPath $apk).Length}

@@ -47,7 +47,7 @@ def fetch(url, path, expected_size, expected_sha, progress=lambda n: None, *, ev
         if n == expected_size: break
         event(phase='download', message='会話モデルをダウンロードしています', bytes=n, total=expected_size, speed=0, eta=-1)
         try:
-            req = urllib.request.Request(url, headers={'Range': f'bytes={n}-', 'User-Agent': 'Gemma-Atelier/1.2'})
+            req = urllib.request.Request(url, headers={'Range': f'bytes={n}-', 'User-Agent': 'LLM-Atelier/1.2.1'})
             with urllib.request.urlopen(req, timeout=20) as response:
                 if response.status == 206:
                     match = re.fullmatch(r'bytes (\d+)-(\d+)/(\d+)', response.headers.get('Content-Range', ''))

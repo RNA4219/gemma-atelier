@@ -24,7 +24,7 @@
  }
  function parseGraph(input){
   const g=copy(input);
-  if(g.format!==1||!Array.isArray(g.nodes)||g.nodes.length<1||g.nodes.length>12)throw Error('Gemma Atelier形式の1〜12ノードを読み込んでください。ComfyUIのJSONは読み込めません。');
+  if(g.format!==1||!Array.isArray(g.nodes)||g.nodes.length<1||g.nodes.length>12)throw Error('LLM Atelier形式の1〜12ノードを読み込んでください。ComfyUIのJSONは読み込めません。');
   if(Object.keys(g).some(k=>!['format','nodes'].includes(k)))throw Error('このJSONには未対応の設定があります。元のファイルは変更していません。');
   const ids=new Set();
   for(const n of g.nodes){
@@ -181,13 +181,13 @@
  el('wf-load').onclick=()=>{try{const entry=library.find(item=>item.name===el('wf-saved').value);if(!entry)return;graph=parseGraph(entry.graph);selected=graph.nodes[0].id;el('wf-name').value=entry.name;statuses.clear();persist();renderGraph();renderInspector();error('');}catch(err){error(err.message);}};
  el('wf-delete').onclick=()=>{const name=el('wf-saved').value;library=library.filter(item=>item.name!==name);persist();renderLibrary();el('wf-state').textContent='保存フローを削除しました。編集中の内容は残ります。';};
  function download(g,name){const blob=new Blob([JSON.stringify(g,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=element('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}
- el('wf-export').onclick=()=>download(graph,'gemma-workflow.json');
+ el('wf-export').onclick=()=>download(graph,'llm-atelier-workflow.json');
  el('wf-import').onchange=async event=>{try{const file=event.target.files[0];if(!file)return;if(file.size>96*1024)throw Error('JSONは96KB以内にしてください。');const incoming=parseGraph(JSON.parse(await file.text()));graph=incoming;selected=graph.nodes[0].id;el('wf-name').value=file.name.replace(/\.json$/i,'').slice(0,40);statuses.clear();persist();renderGraph();renderInspector();error('');}catch(err){error(err.message);}finally{event.target.value='';}};
  el('wf-from-chat').onclick=async()=>{
   const target=graph.nodes.find(n=>n.id===selected&&n.type==='core.prompt')||graph.nodes.find(n=>n.type==='core.prompt');if(!target){error('プロンプトノードを追加してください。');return;}
   let prompt=el('tags').value.trim();const text=el('prompt').value.trim();
   if(!prompt&&!text){error('会話画面に文章を入力するか、生成用タグを作ってください。');return;}
-  try{setBusy(true);error('');if(!prompt){if([...text].length>600)throw Error('タグ変換する文章は600文字以内にしてください。');el('wf-state').textContent='Gemmaが文章を生成用タグへ変換しています…';const response=await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Client':'1'},body:JSON.stringify({text})});if(!response.ok)throw Error(await response.text());prompt=(await response.json()).prompt;}
+  try{setBusy(true);error('');if(!prompt){if([...text].length>600)throw Error('タグ変換する文章は600文字以内にしてください。');el('wf-state').textContent='LLM Atelierが文章を生成用タグへ変換しています…';const response=await fetch('/api/tags',{method:'POST',headers:{'Content-Type':'application/json','X-Chat-Client':'1'},body:JSON.stringify({text})});if(!response.ok)throw Error(await response.text());prompt=(await response.json()).prompt;}
    target.params.prompt=prompt;target.params.negative=imageSettingsUI.current().negative;selected=target.id;persist();renderGraph();renderInspector();el('wf-state').textContent='プロンプトへ取り込みました。編集して実行できます。';
   }catch(err){error(err.message);}finally{setBusy(false);}
  };
@@ -198,9 +198,9 @@
    const output=lastResult.graph.nodes.find(n=>n.id===result.node),source=lastResult.graph.nodes.find(n=>n.id===output?.inputs?.media),prompt=lastResult.graph.nodes.find(n=>n.id===source?.inputs?.prompt);
    if(source?.params?.controlnet&&source.params.controlnet!=='none')article.append(element('p',`ControlNet：${source.params.controlnet} · 強度 ${source.params.control_strength} · 参照 ${source.inputs.control}`,'wf-note'));
    const details=element('details');details.append(element('summary','使用したモデル・プロンプト・設定'),element('p',[source?.params?.model,prompt?.params?.prompt,'ネガティブ：'+(prompt?.params?.negative||'指定なし'),'LoRA：'+(source?.params?.loras||'なし'),'VAE：モデル内蔵（NPU）',source?'CFG '+source.params.cfg+' · steps '+source.params.steps+' · seed '+source.params.seed+' · 再描画 '+source.params.denoise+' · '+source.params.scheduler:''].filter(Boolean).join('\n')));article.append(details);
-   const save=element('a','画像を保存','save');save.href=result.image;save.download='gemma-'+result.node+'.png';article.append(save);container.append(article);
+   const save=element('a','画像を保存','save');save.href=result.image;save.download='llm-atelier-'+result.node+'.png';article.append(save);container.append(article);
   }
-  const row=element('div',undefined,'wf-result-buttons');row.append(button('この実行条件を再利用',()=>{try{graph=parseGraph(lastResult.graph);selected=graph.nodes[0].id;statuses.clear();persist();renderGraph();renderInspector();el('wf-state').textContent='実行時のseedも含めて復元しました。';}catch(err){error(err.message);}}),button('実行条件JSON',()=>download(lastResult.graph,'gemma-workflow-executed.json')));container.append(row);syncControls();
+  const row=element('div',undefined,'wf-result-buttons');row.append(button('この実行条件を再利用',()=>{try{graph=parseGraph(lastResult.graph);selected=graph.nodes[0].id;statuses.clear();persist();renderGraph();renderInspector();el('wf-state').textContent='実行時のseedも含めて復元しました。';}catch(err){error(err.message);}}),button('実行条件JSON',()=>download(lastResult.graph,'llm-atelier-workflow-executed.json')));container.append(row);syncControls();
  }
  el('wf-run').onclick=async()=>{
   if(busy||!ready||el('wf-run').disabled)return;controller=new AbortController();setBusy(true);error('');statuses.clear();renderGraph();el('wf-state').textContent='ワークフローを開始します…';let finished=false;
